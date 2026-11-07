@@ -62,6 +62,10 @@ public final class Library {
     public void dark(boolean value) { prefs.edit().putBoolean("dark", value).apply(); }
     public String theme() { return prefs.getString("theme", "Moderno"); }
     public void theme(String value) { prefs.edit().putString("theme", value).apply(); }
+    public boolean descending() { return prefs.getBoolean("descending", false); }
+    public void descending(boolean value) { prefs.edit().putBoolean("descending", value).apply(); }
+    public String homeConsole() { return prefs.getString("homeConsole", "NES"); }
+    public void homeConsole(Console c) { prefs.edit().putString("homeConsole", c.name()).apply(); }
     public boolean visible(Console c) { return prefs.getBoolean("visible_" + c.name(), true); }
     public void visible(Console c, boolean visible) { prefs.edit().putBoolean("visible_" + c.name(), visible).apply(); }
     public Set<String> favorites() { return new HashSet<>(prefs.getStringSet("favorites", new HashSet<>())); }
@@ -75,6 +79,7 @@ public final class Library {
         for (Game g : games) if (visible(g.console) && (c == null || c == g.console)
                 && (!favorite || favorite(g)) && g.title.toLowerCase(java.util.Locale.ROOT)
                 .contains(query.toLowerCase(java.util.Locale.ROOT))) result.add(g);
+        if (descending()) java.util.Collections.reverse(result);
         return result;
     }
     public int count(Console c) { int n = 0; for (Game g : games) if (g.console == c) n++; return n; }

@@ -35,11 +35,11 @@ jobs:
       - name: Package APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Tirsolador-v0.1.0-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Tirsolador-v0.2.0-preview.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Tirsolador-v0.1.0-preview
+          name: Tirsolador-v0.2.0-preview
           path: dist/*
       - uses: actions/upload-artifact@v4
         if: always()
@@ -52,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="preview-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.1.0 preview · Build ${GITHUB_RUN_NUMBER}" --notes-file docs/PREVIEW.md
+          gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.2.0 · Segundo build" --notes-file docs/BUILD_2.md
   smoke-test:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -81,9 +81,16 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
+          script: |
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            adb pull /sdcard/Android/data/com.tirso.tirsolador/files/screenshots screenshots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: smoke-test-reports
           path: app/build/reports/androidTests/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-build-2
+          path: screenshots/
