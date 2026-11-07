@@ -50,7 +50,7 @@ public final class Library {
             if (!ids.add(g.id)) throw new JSONException("ID duplicado: " + g.id);
             parsed.add(g);
         }
-        parsed.sort(Comparator.comparing(g -> g.title, String.CASE_INSENSITIVE_ORDER));
+        java.util.Collections.sort(parsed, (aGame, bGame) -> aGame.title.compareToIgnoreCase(bGame.title));
         return parsed;
     }
     public void importCatalog(String json) throws JSONException {
