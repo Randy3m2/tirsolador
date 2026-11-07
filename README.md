@@ -19,16 +19,26 @@ Crear una experiencia estilo Batocera/launcher de consola para televisores Andro
 
 ## Consolas iniciales
 
-La lista inicial prevista incluye:
-
-- Nintendo 64
+- NES
+- SNES
+- Sega Mega Drive
 - Game Boy
 - Game Boy Color
 - Game Boy Advance
-- Super Nintendo
-- PlayStation 1
+- Nintendo 64
+- MAME
+- Nintendo DS
 
 La arquitectura debe permitir agregar otras consolas sin rehacer el launcher.
+
+## Repositorios de emuladores asignados
+
+| Consola | Proyecto |
+|---|---|
+| Nintendo 64 | [mupen64plus](https://github.com/mupen64plus) |
+| Nintendo DS | [melonDS](https://github.com/melonDS-emu/melonDS) |
+
+Los demás emuladores se incorporarán cuando se definan sus repositorios. Antes de integrar cada proyecto se revisarán su licencia, arquitectura Android, sistema de build y compatibilidad con Android TV.
 
 ## Integraciones previstas
 
@@ -78,10 +88,8 @@ Se incorporará un servicio de scraping o API para obtener carátulas, descripci
 
 ## Estado actual
 
-Repositorio inicializado. Pendiente de recibir:
-
-1. Repositorios GitHub de los emuladores.
-2. Imágenes y referencias visuales.
-3. Canales o estructura de TirsoDrive.
-4. Lista exacta de dispositivos Android TV objetivo.
-5. Primera consola para el prototipo funcional.
+- Consolas iniciales definidas.
+- Repositorios de Nintendo 64 y Nintendo DS registrados.
+- Pendiente de recibir repositorios para NES, SNES, Mega Drive, Game Boy, Game Boy Color, Game Boy Advance y MAME.
+- Pendiente de recibir imágenes y referencias visuales.
+- Pendiente de documentar los canales o estructura de TirsoDrive.
