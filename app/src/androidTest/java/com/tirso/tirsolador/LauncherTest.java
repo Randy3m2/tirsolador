@@ -152,6 +152,8 @@ public class LauncherTest {
         assertEquals(Console.MD,TelegramCatalog.consoleFor("TD - ROMs - Genesis"));
         assertNull(TelegramCatalog.consoleFor("TD - Photos"));assertNull(TelegramCatalog.consoleFor("TD - ROMs - GameCube"));
         assertEquals("",TelegramCatalog.expectedTitle(Console.GBA));
+        org.drinkless.tdlib.TdApi.Chat chat=new org.drinkless.tdlib.TdApi.Chat();chat.type=new org.drinkless.tdlib.TdApi.ChatTypePrivate();
+        assertFalse(TelegramCatalog.group(chat));chat.type=new org.drinkless.tdlib.TdApi.ChatTypeSupergroup();assertTrue(TelegramCatalog.group(chat));
         org.drinkless.tdlib.TdApi.Message message=new org.drinkless.tdlib.TdApi.Message();message.chatId=-123;message.id=456;
         org.drinkless.tdlib.TdApi.MessageDocument content=new org.drinkless.tdlib.TdApi.MessageDocument();
         content.document=new org.drinkless.tdlib.TdApi.Document();content.document.fileName="Super Mario 64 (USA).z64";
@@ -166,6 +168,24 @@ public class LauncherTest {
         assertEquals("unit-test-value",store.get("testCredential"));assertArrayEquals(store.databaseKey(),store.databaseKey());
         String raw=rule.getActivity().getSharedPreferences("secrets",0).getString("testCredential","");assertFalse(raw.contains("unit-test-value"));
         assertFalse(TirsoDrive.validHash("not-a-hash"));
+    }
+    @Test public void testNativeClientLifecycleBeforeAuthorization() throws Exception {
+        System.loadLibrary("tdjni");
+        java.util.concurrent.CountDownLatch waiting=new java.util.concurrent.CountDownLatch(1),closed=new java.util.concurrent.CountDownLatch(1);
+        org.drinkless.tdlib.Client client=org.drinkless.tdlib.Client.create(object->{
+            if(object instanceof org.drinkless.tdlib.TdApi.UpdateAuthorizationState){
+                org.drinkless.tdlib.TdApi.AuthorizationState state=((org.drinkless.tdlib.TdApi.UpdateAuthorizationState)object).authorizationState;
+                if(state instanceof org.drinkless.tdlib.TdApi.AuthorizationStateWaitTdlibParameters)waiting.countDown();
+                if(state instanceof org.drinkless.tdlib.TdApi.AuthorizationStateClosed)closed.countDown();
+            }
+        },null,null);
+        try {
+            client.send(new org.drinkless.tdlib.TdApi.GetAuthorizationState(),object->{if(object instanceof org.drinkless.tdlib.TdApi.AuthorizationStateWaitTdlibParameters)waiting.countDown();});
+            assertTrue("Native client did not reach parameter state",waiting.await(10,java.util.concurrent.TimeUnit.SECONDS));
+        }finally{
+            client.send(new org.drinkless.tdlib.TdApi.Close(),null);
+            assertTrue("Native client did not close",closed.await(10,java.util.concurrent.TimeUnit.SECONDS));
+        }
     }
     @Test public void testFirstRunConfigurationDoesNotFabricateQr() throws Throwable {
         MainActivity activity=rule.getActivity();

@@ -5,6 +5,7 @@ import org.drinkless.tdlib.TdApi;
 
 /** Exact source routing and conservative document parsing; no substring console guesses. */
 final class TelegramCatalog {
+    static boolean group(TdApi.Chat chat){return chat.type instanceof TdApi.ChatTypeBasicGroup||chat.type instanceof TdApi.ChatTypeSupergroup;}
     static String expectedTitle(Console c){
         switch(c){
             case NES:return "TD - ROMs - NES";

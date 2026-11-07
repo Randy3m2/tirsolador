@@ -46,6 +46,7 @@ final class TirsoDrive {
     boolean discovering,syncing;
     long accountId;
     private int generation;
+    private int clientGeneration;
     private boolean starting,logoutRequested,restartRequested,parametersSent,qrRequested;
     private int lastDownloadPercent=-1;
     private TirsoDrive(Context context){
@@ -82,15 +83,22 @@ final class TirsoDrive {
                 System.loadLibrary("tdjni");
                 Client.execute(new TdApi.SetLogStream(new TdApi.LogStreamEmpty()));
                 Client.execute(new TdApi.SetLogVerbosityLevel(0));
-                client=Client.create(object->main.post(()->update(object)),e->main.post(this::nativeError),e->main.post(this::nativeError));
-                main.post(()->{starting=false;retry();});
+                main.post(()->{
+                    try{
+                        int session=++clientGeneration;
+                        client=Client.create(object->main.post(()->{if(session==clientGeneration)update(object);}),
+                            e->main.post(()->{if(session==clientGeneration)nativeError();}),
+                            e->main.post(()->{if(session==clientGeneration)nativeError();}));
+                        starting=false;retry();
+                    }catch(Throwable e){starting=false;stage=Stage.ERROR;error="No se pudo crear la sesión nativa de Telegram.";publish(false);}
+                });
             }catch(Throwable e){main.post(()->{starting=false;stage=Stage.ERROR;error="No se pudo iniciar TDLib en este dispositivo.";publish(false);});}
         },"tdlib-start").start();
     }
     private void nativeError(){error="Telegram encontró un problema de conexión. Puedes reintentar.";publish(false);}
     private void send(TdApi.Function<?> function,Consumer<TdApi.Object> result){
         Client current=client;if(current==null)return;
-        current.send(function,object->main.post(()->result.accept(object)));
+        current.send(function,object->main.post(()->{if(current==client)result.accept(object);}));
     }
     private void checked(TdApi.Function<?> function){send(function,object->{if(object instanceof TdApi.Error)fail((TdApi.Error)object);});}
     private void fail(TdApi.Error failure){
@@ -139,7 +147,7 @@ final class TirsoDrive {
             });
         }else if(object instanceof TdApi.AuthorizationStateLoggingOut){stage=Stage.CONNECTING;status="Cerrando sesión…";
         }else if(object instanceof TdApi.AuthorizationStateClosed){
-            client=null;stage=Stage.CONFIG;qrLink="";accountId=0;generation++;syncing=false;discovering=false;chats.clear();
+            client=null;clientGeneration++;stage=Stage.CONFIG;qrLink="";accountId=0;generation++;syncing=false;discovering=false;chats.clear();
             for(Source s:sources.values()){s.chatId=0;s.title="";s.issue="Sin grupo asignado";s.candidates.clear();}files.clear();requestedDownloads.clear();watchedFiles.clear();
             if(logoutRequested||restartRequested){logoutRequested=false;restartRequested=false;start();}
             else{status="Sesión cerrada. Vuelve a conectar.";}
@@ -196,9 +204,9 @@ final class TirsoDrive {
         int found=0;
         for(Source source:sources.values()){
             source.candidates.clear();source.chatId=0;source.title="";
-            for(TdApi.Chat chat:chats.values())if(TelegramCatalog.consoleFor(chat.title)==source.console)source.candidates.add(chat);
+            for(TdApi.Chat chat:chats.values())if(TelegramCatalog.group(chat)&&TelegramCatalog.consoleFor(chat.title)==source.console)source.candidates.add(chat);
             long existing=saved.optLong(source.console.name(),0);
-            if(existing!=0&&chats.containsKey(existing)){source.chatId=existing;source.title=chats.get(existing).title;}
+            if(existing!=0&&chats.containsKey(existing)&&TelegramCatalog.group(chats.get(existing))){source.chatId=existing;source.title=chats.get(existing).title;}
             else if(source.candidates.size()==1){source.chatId=source.candidates.get(0).id;source.title=source.candidates.get(0).title;}
             source.issue=source.chatId!=0?"Asignado":source.candidates.size()>1?"Elige el grupo correcto":"Sin grupo asignado";
             if(source.chatId!=0)found++;
@@ -213,12 +221,12 @@ final class TirsoDrive {
     List<TdApi.Chat> choices(Console c){
         Source source=sources.get(c);List<TdApi.Chat> result=new ArrayList<>();
         if(source.candidates.size()>1)result.addAll(source.candidates);
-        else for(TdApi.Chat chat:chats.values())if(TelegramCatalog.selectable(chat.title))result.add(chat);
+        else for(TdApi.Chat chat:chats.values())if(TelegramCatalog.group(chat)&&TelegramCatalog.selectable(chat.title))result.add(chat);
         result.sort((a,b)->a.title.compareToIgnoreCase(b.title));return result;
     }
     void bind(Console c,long id){
         if(stage!=Stage.READY||syncing||discovering)return;TdApi.Chat chat=chats.get(id);
-        if(chat==null||!TelegramCatalog.selectable(chat.title))return;
+        if(chat==null||!TelegramCatalog.group(chat)||!TelegramCatalog.selectable(chat.title))return;
         for(Source other:sources.values())if(other.console!=c&&other.chatId==id){error="Ese grupo ya está asignado a "+other.console.title+".";publish(false);return;}
         Source source=sources.get(c);source.chatId=id;source.title=chat.title;source.issue="Asignado";persistBindings();error="";publish(false);
     }
