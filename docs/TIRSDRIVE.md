@@ -21,8 +21,11 @@ TirsoDrive será la integración de Telegram usada por Tirsolador para acceder a
 
 ## Seguridad
 
-- Nunca incluir el API hash, sesión de Telegram, tokens ni credenciales en el APK público.
-- Usar secretos de CI/CD o configuración local protegida.
+- No subir API hashes, sesiones ni tokens al repositorio o logs.
+- La configuración local usa Android Keystore. CI también acepta un API hash como
+  secreto de Actions; si se inyecta en BuildConfig será extraíble del APK. Esto
+  corrige la afirmación anterior de que un secreto de build no llega al binario.
+- Las sesiones y claves de la base de datos permanecen en el dispositivo, con backup deshabilitado.
 - Cifrar la sesión local.
 - Permitir cerrar sesión y revocar la sesión desde Ajustes.
 - No registrar mensajes, archivos o credenciales en logs de producción.

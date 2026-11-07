@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import org.json.JSONException;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.Before;
 import org.junit.runner.RunWith;
 import androidx.test.rule.ActivityTestRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -17,6 +18,11 @@ import static org.junit.Assert.*;
 @RunWith(AndroidJUnit4.class)
 public class LauncherTest {
     @Rule public ActivityTestRule<MainActivity> rule = new ActivityTestRule<>(MainActivity.class);
+    @Before public void enterOfflineLauncher() throws Throwable {
+        rule.runOnUiThread(()->{
+            View skip=rule.getActivity().getWindow().getDecorView().findViewWithTag("continue_offline");if(skip!=null)skip.performClick();
+        });
+    }
     @Test public void testColdLaunchAndPersistentAppearance() throws Throwable {
         MainActivity activity = rule.getActivity();
         Library model = new Library(activity);
@@ -128,5 +134,47 @@ public class LauncherTest {
             assertFalse(value.equals("TIRSOLADOR")||value.equals("Tus consolas")||value.contains("Vista previa del catálogo")||value.contains("D-pad  Navegar"));
         }
         if(view instanceof android.view.ViewGroup)for(int i=0;i<((android.view.ViewGroup)view).getChildCount();i++)assertNoOldLauncherText(((android.view.ViewGroup)view).getChildAt(i));
+    }
+    @Test public void testRealNativeTdlibVersion() throws Exception {
+        System.loadLibrary("tdjni");
+        org.drinkless.tdlib.TdApi.Object result=org.drinkless.tdlib.Client.execute(new org.drinkless.tdlib.TdApi.GetOption("version"));
+        assertTrue(result instanceof org.drinkless.tdlib.TdApi.OptionValueString);
+        assertFalse(((org.drinkless.tdlib.TdApi.OptionValueString)result).value.isEmpty());
+    }
+    @Test public void testQrEncoderRoundTrip() throws Exception {
+        String value="tirsolador-unit-test";Bitmap qr=QrCode.encode(value,256);int[] pixels=new int[256*256];qr.getPixels(pixels,0,256,0,0,256,256);
+        com.google.zxing.BinaryBitmap bitmap=new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(new com.google.zxing.RGBLuminanceSource(256,256,pixels)));
+        assertEquals(value,new com.google.zxing.MultiFormatReader().decode(bitmap).getText());qr.recycle();
+    }
+    @Test public void testSourceRoutingAndDocumentIsolation() throws Exception {
+        assertEquals(Console.N64,TelegramCatalog.consoleFor("TD - ROMs - N64"));
+        assertEquals(Console.NDS,TelegramCatalog.consoleFor("TD - ROMs - DS"));
+        assertEquals(Console.MD,TelegramCatalog.consoleFor("TD - ROMs - Genesis"));
+        assertNull(TelegramCatalog.consoleFor("TD - Photos"));assertNull(TelegramCatalog.consoleFor("TD - ROMs - GameCube"));
+        assertEquals("",TelegramCatalog.expectedTitle(Console.GBA));
+        org.drinkless.tdlib.TdApi.Message message=new org.drinkless.tdlib.TdApi.Message();message.chatId=-123;message.id=456;
+        org.drinkless.tdlib.TdApi.MessageDocument content=new org.drinkless.tdlib.TdApi.MessageDocument();
+        content.document=new org.drinkless.tdlib.TdApi.Document();content.document.fileName="Super Mario 64 (USA).z64";
+        content.document.document=new org.drinkless.tdlib.TdApi.File();content.document.document.id=22;content.document.document.size=100;
+        message.content=content;
+        Game game=TelegramCatalog.game(77,Console.N64,message);assertNotNull(game);assertEquals(-123,game.chatId);assertEquals(77,game.telegramAccount);
+        assertNull(TelegramCatalog.game(77,Console.NES,message));
+        assertEquals(game.id,Game.fromJson(game.toJson()).id);
+    }
+    @Test public void testProtectedDeviceStorage() throws Exception {
+        SecretStore store=new SecretStore(rule.getActivity());store.put("testCredential","unit-test-value");
+        assertEquals("unit-test-value",store.get("testCredential"));assertArrayEquals(store.databaseKey(),store.databaseKey());
+        String raw=rule.getActivity().getSharedPreferences("secrets",0).getString("testCredential","");assertFalse(raw.contains("unit-test-value"));
+        assertFalse(TirsoDrive.validHash("not-a-hash"));
+    }
+    @Test public void testFirstRunConfigurationDoesNotFabricateQr() throws Throwable {
+        MainActivity activity=rule.getActivity();
+        rule.runOnUiThread(()->{
+            activity.getWindow().getDecorView().findViewWithTag("nav_settings").performClick();
+            activity.getWindow().getDecorView().findViewWithTag("telegram").performClick();
+            assertNotNull(activity.getWindow().getDecorView().findViewWithTag("configure_credentials"));
+        });
+        capture("05-welcome-configuration");
+        rule.runOnUiThread(()->activity.getWindow().getDecorView().findViewWithTag("continue_offline").performClick());
     }
 }

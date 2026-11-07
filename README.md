@@ -2,13 +2,15 @@
 
 Launcher de juegos retro para Android TV, con biblioteca remota, descarga bajo demanda y emulación integrada.
 
-## APK actual: 0.2.0 Preview — segundo build
+## APK actual: 0.3.0 Preview — TirsoDrive nativo
 
 El launcher ya tiene código Android nativo. Las [prereleases](https://github.com/Randy3m2/tirsolador/releases)
 publican una APK de prueba con consolas, logos PNG, temas claro/oscuro, favoritos,
-búsqueda, orden alfabético y tema de consola a pantalla completa. Consulta
-[funciones y límites del segundo build](docs/BUILD_2.md).
-La emulación integrada y la conexión Telegram QR todavía están pendientes.
+búsqueda, orden alfabético y tema de consola a pantalla completa. La versión 0.3
+incorpora TDLib, bienvenida QR, grupos por consola, sincronización y descarga.
+Consulta [configuración, funciones y límites de TirsoDrive](docs/BUILD_3.md).
+La emulación integrada todavía está pendiente. La sesión real requiere configurar
+las credenciales de la aplicación y aprobar el login desde Telegram.
 Los apartados siguientes describen el objetivo completo del proyecto.
 
 ## Objetivo

@@ -35,6 +35,13 @@ public class MainActivity extends Activity {
     private ScrollView activeScroll;
     private int libraryScroll;
     private String libraryFocus = "";
+    private TirsoDrive drive;
+    private TirsoDrive.Listener driveListener;
+    private TextView downloadLabel,downloadButton;
+    private int visibleGames=60;
+    private android.graphics.Bitmap qrBitmap;
+    private String renderedQr="";
+    private String lastDriveError="";
     private int text, muted, surface, background, accent;
     private String page = "home", query = "";
     private Console console;
@@ -48,6 +55,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         library = new Library(this); artwork = new Artwork(this); controllers = new ControllerProfiles(this);
+        drive=TirsoDrive.get(this);
         inputManager=(android.hardware.input.InputManager)getSystemService(INPUT_SERVICE);
         inputListener=new android.hardware.input.InputManager.InputDeviceListener(){
             public void onInputDeviceAdded(int id) { }
@@ -62,7 +70,17 @@ public class MainActivity extends Activity {
             try { console = Console.valueOf(state.getString("console", "")); } catch (IllegalArgumentException ignored) { }
             for (Game g : library.games) if (g.id.equals(state.getString("game"))) selected = g;
         }
+        if(!drive.onboarded()&&!drive.skipped())page="welcome";
         render();
+        driveListener=catalog->{
+            if(catalog){rememberLibrary();library=new Library(this);}
+            if(!drive.skipped()&&(drive.stage==TirsoDrive.Stage.QR||drive.stage==TirsoDrive.Stage.PASSWORD||drive.stage==TirsoDrive.Stage.CODE))page="welcome";
+            if(page.equals("welcome")||catalog)render();
+            else if(page.equals("detail"))updateDownload();
+            else if(!drive.error.isEmpty()&&!drive.error.equals(lastDriveError))Toast.makeText(this,drive.error,Toast.LENGTH_LONG).show();
+            lastDriveError=drive.error;
+        };
+        drive.attach(driveListener);drive.start();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
@@ -124,20 +142,22 @@ public class MainActivity extends Activity {
         content=null;activeScroll=null;
         LinearLayout header = horizontal();
         if(!page.equals("home")) header.addView(icon("back","Volver","nav_back",this::onBackPressed));
-        TextView title=label(page.equals("library")?(favorites?"Favoritos":console==null?"Biblioteca":console.title):"",18,text,true);
+        TextView title=label(page.equals("welcome")?"TirsoDrive":page.equals("library")?(favorites?"Favoritos":console==null?"Biblioteca":console.title):"",18,text,true);
         header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         if(page.equals("library")) {
             header.addView(icon("search","Buscar juegos","search",this::search));
             header.addView(icon("refresh","Refrescar catálogo","refresh",this::refreshCatalog));
             header.addView(icon("sort","Ordenar juegos: "+(library.descending()?"Z a A":"A a Z"),"sort",this::sortGames));
         }
-        header.addView(icon("star","Favoritos","nav_favorites", () -> {
+        if(!page.equals("welcome"))header.addView(icon("star","Favoritos","nav_favorites", () -> {
             console = null; favorites = true; query = ""; libraryFocus="";libraryScroll=0;route("library");
         }));
-        header.addView(icon("settings","Ajustes","nav_settings", () -> route("settings")));
+        if(!page.equals("welcome"))header.addView(icon("settings","Ajustes","nav_settings", () -> route("settings")));
+        else header.addView(button(library.dark()?"Modo claro":"Modo oscuro","welcome_color",()->{library.dark(!library.dark());render();}));
         root.addView(header);
         body = vertical(); root.addView(body, new LinearLayout.LayoutParams(-1, 0, 1));
-        if (page.equals("settings")) settings();
+        if(page.equals("welcome"))welcome();
+        else if (page.equals("settings")) settings();
         else if (page.equals("detail") && selected != null) detail();
         else if (page.equals("library")) libraryScreen();
         else home();
@@ -154,6 +174,75 @@ public class MainActivity extends Activity {
             View f = firstContentFocusable(((ViewGroup) v).getChildAt(i)); if (f != null) return f;
         }
         return null;
+    }
+    private void connectScreen(){page="welcome";lastFocus="";drive.enterConnection();render();}
+    private void welcome(){
+        heading(drive.stage==TirsoDrive.Stage.READY?"Tu biblioteca, conectada":"Tu biblioteca retro, conectada",drive.status);
+        if(!drive.error.isEmpty())body.addView(label(drive.error,13,library.dark()?0xFFFFADB5:0xFFB0263D,false));
+        if(drive.stage==TirsoDrive.Stage.READY){
+            content=scrollContent();
+            for(Console c:Console.values()){
+                TirsoDrive.Source source=drive.sources.get(c);
+                content.addView(button(c.title+"  ·  "+(source.chatId==0?source.issue:source.title),"source_"+c.name(),()->chooseSource(c)));
+            }
+            if(drive.discovering||drive.syncing)content.addView(button("Cancelar actualización","cancel_sync",drive::cancelSync));
+            else{
+                content.addView(button("Buscar grupos","discover_sources",drive::discover));
+                content.addView(button("Actualizar catálogo","sync_sources",drive::sync));
+                content.addView(button("Ir a mi biblioteca","open_connected_library",()->{drive.finishOnboarding();library=new Library(this);route("home");}));
+            }
+            content.addView(button("Cerrar sesión","logout",()->new AlertDialog.Builder(this).setTitle("Cerrar sesión de Telegram")
+                .setMessage("Se quitará la biblioteca sincronizada de esta cuenta en la TV. Podrás volver a conectar.")
+                .setPositiveButton("Cerrar sesión",(d,w)->drive.logout()).setNegativeButton("Cancelar",null).show()));return;
+        }
+        content=scrollContent();
+        LinearLayout columns=horizontal();columns.setGravity(Gravity.TOP);
+        LinearLayout instructions=vertical();instructions.setPadding(0,dp(10),dp(20),0);
+        instructions.addView(label("1  Conectar    2  Encontrar consolas    3  Biblioteca",12,accent,true));
+        instructions.addView(label("Abre Telegram en tu teléfono y entra en Ajustes → Dispositivos → Vincular dispositivo.",17,text,false));
+        instructions.addView(label("Después buscaremos tus grupos TD - ROMs, incluidos los archivados, y asignaremos cada uno a su consola.",14,muted,false));
+        if(drive.stage==TirsoDrive.Stage.CONFIG){
+            instructions.addView(button("Configurar TirsoDrive","configure_credentials",this::configureCredentials));
+            instructions.addView(label("Configuración inicial de la aplicación. Tu sesión de Telegram se autoriza después con el QR.",12,muted,false));
+        }else if(drive.stage==TirsoDrive.Stage.PASSWORD)instructions.addView(button("Introducir contraseña","auth_password",()->authInput(true)));
+        else if(drive.stage==TirsoDrive.Stage.CODE)instructions.addView(button("Introducir código","auth_code",()->authInput(false)));
+        else instructions.addView(button("Reintentar conexión","retry_connection",drive::retry));
+        if(!drive.error.isEmpty()&&drive.stage!=TirsoDrive.Stage.CONFIG)instructions.addView(button("Revisar configuración","repair_credentials",this::configureCredentials));
+        instructions.addView(button("Continuar sin conexión","continue_offline",()->{drive.skip();route("home");}));
+        columns.addView(instructions,new LinearLayout.LayoutParams(0,-2,1));
+        if(drive.stage==TirsoDrive.Stage.QR&&!drive.qrLink.isEmpty()){
+            try{
+                if(!drive.qrLink.equals(renderedQr)){qrBitmap=QrCode.encode(drive.qrLink,480);renderedQr=drive.qrLink;}
+                ImageView qr=new ImageView(this);qr.setImageBitmap(qrBitmap);qr.setContentDescription("Código QR para vincular Telegram");
+                qr.setScaleType(ImageView.ScaleType.FIT_CENTER);qr.setBackgroundColor(Color.WHITE);
+                columns.addView(qr,new LinearLayout.LayoutParams(dp(230),dp(230)));
+            }catch(Exception e){columns.addView(label("No se pudo dibujar el QR. Reintenta la conexión.",14,muted,false));}
+        }
+        content.addView(columns);
+    }
+    private void configureCredentials(){
+        EditText hash=new EditText(this);hash.setSingleLine(true);hash.setHint("API hash de TirsoDrive");
+        hash.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        new AlertDialog.Builder(this).setTitle("Configurar TirsoDrive")
+            .setMessage("API ID: "+BuildConfig.TELEGRAM_API_ID+". Introduce el API hash una sola vez; se guarda cifrado en esta TV.")
+            .setView(hash).setPositiveButton("Guardar",(d,w)->{String value=hash.getText().toString().trim();hash.setText("");drive.configureHash(value);})
+            .setNegativeButton("Cancelar",(d,w)->hash.setText("")).show();
+    }
+    private void authInput(boolean password){
+        EditText input=new EditText(this);input.setSingleLine(true);
+        input.setInputType(password?android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD:android.text.InputType.TYPE_CLASS_NUMBER);
+        new AlertDialog.Builder(this).setTitle(password?"Verificación en dos pasos":"Código de Telegram").setView(input)
+            .setPositiveButton("Continuar",(d,w)->{String value=input.getText().toString();input.setText("");if(password)drive.password(value);else drive.code(value);})
+            .setNegativeButton("Cancelar",(d,w)->input.setText("")).show();
+    }
+    private void chooseSource(Console console){
+        if(drive.syncing||drive.discovering)return;
+        java.util.List<org.drinkless.tdlib.TdApi.Chat> choices=drive.choices(console);
+        String[] labels=new String[choices.size()+1];labels[0]="Sin grupo asignado";
+        for(int i=0;i<choices.size();i++)labels[i+1]=choices.get(i).title+" · ID "+choices.get(i).id;
+        new AlertDialog.Builder(this).setTitle(console.title).setItems(labels,(d,w)->{
+            if(w==0)drive.unbind(console);else drive.bind(console,choices.get(w-1).id);
+        }).setNegativeButton("Cancelar",null).show();
     }
     private void heading(String title, String subtitle) {
         body.addView(label(title, 28, text, true)); body.addView(label(subtitle, 12, muted, false));
@@ -198,7 +287,7 @@ public class MainActivity extends Activity {
         while(index++%3!=0)row.addView(new View(this),new LinearLayout.LayoutParams(0,-1,1));
     }
     private void openConsole(Console c) {
-        console=c;library.homeConsole(c);favorites=false;query="";libraryFocus="";libraryScroll=0;route("library");
+        console=c;library.homeConsole(c);favorites=false;query="";libraryFocus="";libraryScroll=0;visibleGames=60;route("library");
     }
     private Console heroConsole(java.util.List<Console> consoles) {
         for(Console c:consoles)if(c.name().equals(library.homeConsole()))return c;return consoles.get(0);
@@ -236,7 +325,7 @@ public class MainActivity extends Activity {
         body.addView(summary);
         int columns=getResources().getConfiguration().screenWidthDp>=800?6:5;
         LinearLayout grid = scrollContent(); LinearLayout row = null; int index = 0;
-        for (Game game : games) {
+        for (Game game : games.subList(0,Math.min(visibleGames,games.size()))) {
             if (index % columns == 0) { row = horizontal(); grid.addView(row); }
             LinearLayout tile = vertical(); tile.setPadding(dp(7),dp(7),dp(7),dp(6));
             FrameLayout art = new FrameLayout(this);
@@ -249,16 +338,23 @@ public class MainActivity extends Activity {
             tile.addView(art, new LinearLayout.LayoutParams(-1,dp(90))); artwork.load(game, image);
             TextView name = label((library.favorite(game) ? "★ " : "") + game.title,11,text,true);
             name.setMaxLines(2); name.setEllipsize(android.text.TextUtils.TruncateAt.END); tile.addView(name);
-            focusable(tile, "game_" + game.id, surface, () -> { selected = game; route("detail"); });
+            focusable(tile, "game_" + game.id, surface, () -> { selected = game;drive.inspectFile(game);route("detail"); });
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,dp(135),1); p.setMargins(dp(5),dp(5),dp(5),dp(5));
             row.addView(tile, p); index++;
         }
         if (index == 0) grid.addView(label(favorites ? "Guarda juegos desde su ficha para verlos aquí." : "No hay juegos que coincidan.", 18, muted, false));
         else while (index++ % columns != 0) row.addView(new View(this),new LinearLayout.LayoutParams(0,dp(135),1));
+        if(games.size()>visibleGames)grid.addView(button("Mostrar más juegos","load_more",()->{
+            int next=visibleGames;visibleGames+=60;lastFocus="game_"+games.get(next).id;render();
+        }));
     }
     private void refreshCatalog() {
-        rememberLibrary();library=new Library(this);render();
-        Toast.makeText(this,"Catálogo local recargado. TirsoDrive aún no está conectado.",Toast.LENGTH_LONG).show();
+        if(drive.stage==TirsoDrive.Stage.READY){
+            boolean assigned=false;for(TirsoDrive.Source s:drive.sources.values())if(s.chatId!=0)assigned=true;
+            if(!assigned){connectScreen();return;}
+            drive.sync();Toast.makeText(this,drive.syncing?"Actualizando desde Telegram…":drive.status,Toast.LENGTH_SHORT).show();
+        }
+        else connectScreen();
     }
     private void sortGames() {
         new AlertDialog.Builder(this).setTitle("Orden alfabético")
@@ -274,10 +370,31 @@ public class MainActivity extends Activity {
         LinearLayout info = vertical(); info.setPadding(dp(24), 0, 0, 0);
         info.addView(label(selected.title, 26, text, true));
         info.addView(label(selected.description, 15, muted, false));
+        if(selected.telegramAccount!=0){
+            downloadLabel=label("",13,muted,false);info.addView(downloadLabel);
+            downloadButton=button("Descargar juego","download_game",()->{
+                org.drinkless.tdlib.TdApi.File file=drive.file(selected);
+                if(file!=null&&file.local.isDownloadingActive)drive.cancelDownload(selected);
+                else if(file!=null&&file.local.isDownloadingCompleted)message("Archivo descargado","El archivo está en la TV. La ejecución se habilitará con el núcleo integrado de esta consola.");
+                else if(!drive.owns(selected))connectScreen();else drive.download(selected);
+                updateDownload();
+            });info.addView(downloadButton);updateDownload();
+        }
         info.addView(button(library.favorite(selected) ? "★ Quitar de favoritos" : "☆ Guardar en favoritos", "favorite_toggle", () -> { library.toggleFavorite(selected); render(); }));
         info.addView(button("Estado de emulación", "engine", () -> message("Emulación integrada", "Esta primera preview permite probar el launcher. Los núcleos de emulación y el inicio de juegos todavía no están integrados.")));
         info.addView(button("Volver a la biblioteca", "back_library", this::backToLibrary));
         columns.addView(info, new LinearLayout.LayoutParams(0, -2, 1)); content.addView(columns);
+    }
+    private void updateDownload(){
+        if(selected==null||selected.telegramAccount==0||downloadLabel==null||downloadButton==null)return;
+        org.drinkless.tdlib.TdApi.File file=drive.file(selected);
+        String size=android.text.format.Formatter.formatFileSize(this,selected.fileSize);
+        if(file!=null&&file.local.isDownloadingCompleted){downloadLabel.setText("Archivo descargado · "+size);downloadButton.setText("Archivo descargado");}
+        else if(file!=null&&file.local.isDownloadingActive){
+            int percent=(int)Math.min(100,file.local.downloadedSize*100/Math.max(1,Math.max(file.size,file.expectedSize)));
+            downloadLabel.setText("Descargando: "+percent+"% · "+size);downloadButton.setText("Cancelar descarga");
+        }else{downloadLabel.setText(size+" · "+(drive.owns(selected)?"Disponible en Telegram":"Conecta la cuenta de este juego"));downloadButton.setText(drive.owns(selected)?"Descargar juego":"Conectar TirsoDrive");}
+        if(!drive.error.isEmpty())downloadLabel.setText(drive.error);
     }
     private void search() {
         EditText input = new EditText(this); input.setSingleLine(true); input.setText(query); input.setHint("Nombre del juego");
@@ -305,9 +422,9 @@ public class MainActivity extends Activity {
         }));
         content.addView(button("Mostrar todas las consolas", "show_all", () -> { for (Console c : Console.values()) library.visible(c, true); render(); }));
         content.addView(label("BIBLIOTECA Y CONEXIÓN", 12, accent, true));
-        content.addView(button("TirsoDrive · Estado", "telegram", () -> message("TirsoDrive", "API ID registrado: 38798734. La conexión con TDLib, el login QR y los canales aún están pendientes de integración. Esta APK no abre sesiones de Telegram.")));
+        content.addView(button("TirsoDrive · "+(drive.stage==TirsoDrive.Stage.READY?"Conectado":"Conectar"), "telegram",this::connectScreen));
         content.addView(button("Controles conectados", "controllers", this::controllers));
-        content.addView(button("Acerca de esta versión", "about", () -> message("Tirsolador 0.2.0 · Build 2", "Launcher nativo Android TV. Esta versión incorpora el nuevo diseño, el tema Consola completa y perfiles separados de entrada. Catálogo de muestra; Telegram, emulación y respaldos siguen pendientes.\n\nLogos: tema Carbon, Rookervik / RetroPie. Licencia CC BY-NC-SA; marcas de sus respectivos propietarios.")));
+        content.addView(button("Acerca de esta versión", "about", () -> message("Tirsolador 0.3.0 · TirsoDrive", "Cliente nativo de Telegram con QR, grupos por consola, sincronización y descargas locales. Android 8 o superior. La ejecución con núcleos y los respaldos siguen pendientes.\n\nTDLib: Telegram, Boost Software License; distribución nativa tdlib-android 0.1.1. QR: ZXing, Apache 2.0. Logos: Carbon, Rookervik / RetroPie, CC BY-NC-SA; marcas de sus propietarios.")));
     }
     private void controllers() {
         java.util.ArrayList<InputDevice> devices=new java.util.ArrayList<>();
@@ -363,10 +480,11 @@ public class MainActivity extends Activity {
         return super.onGenericMotionEvent(event);
     }
     @Override public void onBackPressed() {
+        if(page.equals("welcome")){drive.skip();route("home");return;}
         if (page.equals("detail")) backToLibrary();
         else if (!page.equals("home")) route("home");
         else new AlertDialog.Builder(this).setTitle("Salir de Tirsolador")
                     .setPositiveButton("Salir", (d,w) -> finish()).setNegativeButton("Cancelar", null).show();
     }
-    @Override protected void onDestroy() { inputManager.unregisterInputDeviceListener(inputListener);artwork.close(); super.onDestroy(); }
+    @Override protected void onDestroy() {drive.detach(driveListener);inputManager.unregisterInputDeviceListener(inputListener);artwork.close(); super.onDestroy(); }
 }

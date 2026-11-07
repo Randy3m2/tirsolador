@@ -31,15 +31,24 @@ jobs:
           path: ~/.android/debug.keystore
           key: tirsolador-preview-key-v1
       - name: Build and lint
+        env:
+          TIRSO_TELEGRAM_API_HASH: ${{ secrets.TIRSO_TELEGRAM_API_HASH }}
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest
       - name: Package APK
+        env:
+          TIRSO_TELEGRAM_API_HASH: ${{ secrets.TIRSO_TELEGRAM_API_HASH }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Tirsolador-v0.2.0-preview.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Tirsolador-v0.3.0-preview.apk
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
+          if [ -n "$TIRSO_TELEGRAM_API_HASH" ]; then
+            printf 'Telegram credentials: supplied by CI secret. Account authorization still requires QR.\n' > dist/BUILD_STATUS.txt
+          else
+            printf 'Telegram credentials: configure API hash once on the device, or supply TIRSO_TELEGRAM_API_HASH in GitHub Actions secrets and rebuild.\n' > dist/BUILD_STATUS.txt
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Tirsolador-v0.2.0-preview
+          name: Tirsolador-v0.3.0-preview
           path: dist/*
       - uses: actions/upload-artifact@v4
         if: always()
@@ -52,7 +61,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="preview-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.2.0 · Segundo build" --notes-file docs/BUILD_2.md
+          gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.3.0 · TirsoDrive nativo" --notes-file docs/BUILD_3.md
   smoke-test:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -92,5 +101,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshots-build-2
+          name: screenshots-build-3
           path: screenshots/

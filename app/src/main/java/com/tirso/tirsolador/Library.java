@@ -43,7 +43,7 @@ public final class Library {
         JSONObject root = new JSONObject(json);
         if (root.getInt("schemaVersion") != 1) throw new JSONException("Versión de catálogo no compatible");
         JSONArray a = root.getJSONArray("games");
-        if (a.length() > 10000) throw new JSONException("Máximo 10000 juegos");
+        if (a.length() > 50000) throw new JSONException("Máximo 50000 juegos");
         List<Game> parsed = new ArrayList<>(); Set<String> ids = new HashSet<>();
         for (int i = 0; i < a.length(); i++) {
             Game g = Game.fromJson(a.getJSONObject(i));
@@ -83,4 +83,11 @@ public final class Library {
         return result;
     }
     public int count(Console c) { int n = 0; for (Game g : games) if (g.console == c) n++; return n; }
+    public void replaceTelegram(java.util.List<Game> incoming) throws JSONException {
+        JSONArray array=new JSONArray();for(Game game:incoming)array.put(game.toJson());
+        importCatalog(new JSONObject().put("schemaVersion",1).put("games",array).toString());
+    }
+    public void clearTelegram(){
+        try{replaceTelegram(new java.util.ArrayList<>());}catch(JSONException ignored){ }
+    }
 }

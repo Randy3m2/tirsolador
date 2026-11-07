@@ -4,16 +4,22 @@ android {
     compileSdk 35
     defaultConfig {
         applicationId 'com.tirso.tirsolador'
-        minSdk 23
+        minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName '0.2.0-preview'
+        versionCode 3
+        versionName '0.3.0-preview'
+        buildConfigField 'int', 'TELEGRAM_API_ID', '38798734'
+        def telegramHash = providers.environmentVariable('TIRSO_TELEGRAM_API_HASH').orElse('').get()
+        buildConfigField 'String', 'TELEGRAM_API_HASH', groovy.json.JsonOutput.toJson(telegramHash)
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     lint { abortOnError true }
+    buildFeatures { buildConfig true }
 }
 dependencies {
+    implementation 'io.github.tdlib-android:core:0.1.1'
+    implementation 'com.google.zxing:core:3.5.3'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:rules:1.6.1'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
