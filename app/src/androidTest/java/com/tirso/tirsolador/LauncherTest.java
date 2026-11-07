@@ -110,9 +110,17 @@ public class LauncherTest {
     }
     private void capture(String name) throws Exception {
         android.app.Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
-        instrumentation.waitForIdleSync();Bitmap bitmap=instrumentation.getUiAutomation().takeScreenshot();assertNotNull(bitmap);
-        File folder=new File(rule.getActivity().getExternalFilesDir(null),"screenshots");assertTrue(folder.isDirectory()||folder.mkdirs());
-        try(FileOutputStream stream=new FileOutputStream(new File(folder,name+".png"))){bitmap.compress(Bitmap.CompressFormat.PNG,100,stream);}finally{bitmap.recycle();}
+        instrumentation.waitForIdleSync();
+        // Gradle uninstalls the test target before adb pull. Shell-owned captures
+        // in Downloads survive that cleanup without granting storage access to the app.
+        shellCaptureCommand("mkdir -p /sdcard/Download/tirsolador-screenshots");
+        shellCaptureCommand("screencap -p /sdcard/Download/tirsolador-screenshots/"+name+".png");
+    }
+    private void shellCaptureCommand(String command) throws Exception {
+        android.os.ParcelFileDescriptor fd=InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand(command);
+        try(java.io.InputStream input=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)) {
+            byte[] buffer=new byte[1024];while(input.read(buffer)!=-1){ /* Wait for the shell command to finish. */ }
+        }
     }
     private void assertNoOldLauncherText(View view) {
         if(view instanceof TextView) {
