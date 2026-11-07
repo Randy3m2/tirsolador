@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "integration": "TirsoDrive",
+  "includeArchivedChats": true,
+  "bindingKey": "chatId",
+  "sources": [
+    {"console": "NES", "chatTitle": "TD - ROMs - NES", "chatId": null},
+    {"console": "SNES", "chatTitle": "TD - ROMs - SNES", "chatId": null},
+    {"console": "MD", "chatTitle": "TD - ROMs - Genesis", "chatId": null},
+    {"console": "GB", "chatTitle": "TD - ROMs - Game Boy", "chatId": null},
+    {"console": "N64", "chatTitle": "TD - ROMs - N64", "chatId": null},
+    {"console": "NDS", "chatTitle": "TD - ROMs - DS", "chatId": null}
+  ],
+  "unassignedConsoles": ["GBC", "GBA", "MAME"],
+  "unsupportedSources": [{"chatTitle": "TD - ROMs - GameCube", "reason": "GameCube is outside the initial console lineup"}],
+  "excludedChatTitles": ["TD - Photos", "TD - Compressed", "TD - Audio"],
+  "duplicateTitlePolicy": "requireManualSelection",
+  "missingSourcePolicy": "showUnassignedWithoutCrossConsoleFallback"
+}
