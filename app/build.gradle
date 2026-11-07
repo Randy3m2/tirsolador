@@ -6,8 +6,10 @@ android {
         applicationId 'com.tirso.tirsolador'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '0.3.0-preview'
+        versionCode 4
+        versionName '0.4.0-preview'
+        ndk { abiFilters(*providers.gradleProperty('tirsoAbis').orElse('armeabi-v7a,arm64-v8a,x86,x86_64').get().split(',')) }
+        externalNativeBuild { cmake { arguments '-DCMAKE_BUILD_TYPE=Release'; cppFlags '-O2' } }
         buildConfigField 'int', 'TELEGRAM_API_ID', '38798734'
         def telegramHash = providers.environmentVariable('TIRSO_TELEGRAM_API_HASH').orElse('').get()
         buildConfigField 'String', 'TELEGRAM_API_HASH', groovy.json.JsonOutput.toJson(telegramHash)
@@ -16,6 +18,8 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     lint { abortOnError true }
     buildFeatures { buildConfig true }
+    ndkVersion '27.2.12479018'
+    externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
 }
 dependencies {
     implementation 'io.github.tdlib-android:core:0.1.1'

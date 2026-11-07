@@ -7,3 +7,5 @@ local.properties
 *.env
 !*.env.example
 .idea/
+app/src/main/cpp/upstream/
+app/src/androidTest/assets/diagnostic.nds

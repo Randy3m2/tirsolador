@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private TirsoDrive drive;
     private TirsoDrive.Listener driveListener;
     private TextView downloadLabel,downloadButton;
+    private String pendingPlay="";
     private int visibleGames=60;
     private android.graphics.Bitmap qrBitmap;
     private String renderedQr="";
@@ -127,7 +128,7 @@ public class MainActivity extends Activity {
             if(lastFocus.startsWith("game_"))libraryFocus=lastFocus;
         }
     }
-    private void route(String target) { rememberLibrary();page = target; lastFocus = ""; render(); }
+    private void route(String target) { pendingPlay="";rememberLibrary();page = target; lastFocus = ""; render(); }
     private void backToLibrary() { page="library";lastFocus=libraryFocus;render(); }
     private void render() {
         boolean dark = library.dark();
@@ -374,14 +375,15 @@ public class MainActivity extends Activity {
             downloadLabel=label("",13,muted,false);info.addView(downloadLabel);
             downloadButton=button("Descargar juego","download_game",()->{
                 org.drinkless.tdlib.TdApi.File file=drive.file(selected);
-                if(file!=null&&file.local.isDownloadingActive)drive.cancelDownload(selected);
-                else if(file!=null&&file.local.isDownloadingCompleted)message("Archivo descargado","El archivo está en la TV. La ejecución se habilitará con el núcleo integrado de esta consola.");
-                else if(!drive.owns(selected))connectScreen();else drive.download(selected);
+                if(file!=null&&file.local.isDownloadingActive){pendingPlay="";drive.cancelDownload(selected);}
+                else if(file!=null&&file.local.isDownloadingCompleted)playDownloaded(file.local.path);
+                else if(cachedRom(selected)!=null)playDownloaded(cachedRom(selected));
+                else if(!drive.owns(selected))connectScreen();else{if(selected.console==Console.NDS)pendingPlay=selected.id;drive.download(selected);}
                 updateDownload();
             });info.addView(downloadButton);updateDownload();
         }
         info.addView(button(library.favorite(selected) ? "★ Quitar de favoritos" : "☆ Guardar en favoritos", "favorite_toggle", () -> { library.toggleFavorite(selected); render(); }));
-        info.addView(button("Estado de emulación", "engine", () -> message("Emulación integrada", "Esta primera preview permite probar el launcher. Los núcleos de emulación y el inicio de juegos todavía no están integrados.")));
+        info.addView(button("Estado de emulación", "engine", () -> message("Emulación integrada", "Nintendo DS: melonDS integrado, resolución nativa, audio y guardados locales. Nintendo 64 y los demás núcleos siguen pendientes de integración. Los juegos DS en .7z deben extraerse antes de subirlos.")));
         info.addView(button("Volver a la biblioteca", "back_library", this::backToLibrary));
         columns.addView(info, new LinearLayout.LayoutParams(0, -2, 1)); content.addView(columns);
     }
@@ -389,12 +391,29 @@ public class MainActivity extends Activity {
         if(selected==null||selected.telegramAccount==0||downloadLabel==null||downloadButton==null)return;
         org.drinkless.tdlib.TdApi.File file=drive.file(selected);
         String size=android.text.format.Formatter.formatFileSize(this,selected.fileSize);
-        if(file!=null&&file.local.isDownloadingCompleted){downloadLabel.setText("Archivo descargado · "+size);downloadButton.setText("Archivo descargado");}
+        if(file!=null&&file.local.isDownloadingCompleted){
+            getSharedPreferences("downloaded_roms",MODE_PRIVATE).edit().putString(selected.id,file.local.path).apply();
+            downloadLabel.setText("Archivo descargado · "+size);downloadButton.setText(selected.console==Console.NDS?"Jugar":"Archivo descargado");
+            if(pendingPlay.equals(selected.id)&&page.equals("detail")){pendingPlay="";playDownloaded(file.local.path);}
+        }
+        else if(cachedRom(selected)!=null){downloadLabel.setText("Disponible en esta TV · "+size);downloadButton.setText(selected.console==Console.NDS?"Jugar":"Archivo descargado");}
         else if(file!=null&&file.local.isDownloadingActive){
             int percent=(int)Math.min(100,file.local.downloadedSize*100/Math.max(1,Math.max(file.size,file.expectedSize)));
             downloadLabel.setText("Descargando: "+percent+"% · "+size);downloadButton.setText("Cancelar descarga");
         }else{downloadLabel.setText(size+" · "+(drive.owns(selected)?"Disponible en Telegram":"Conecta la cuenta de este juego"));downloadButton.setText(drive.owns(selected)?"Descargar juego":"Conectar TirsoDrive");}
         if(!drive.error.isEmpty())downloadLabel.setText(drive.error);
+    }
+    private String cachedRom(Game game){
+        String path=getSharedPreferences("downloaded_roms",MODE_PRIVATE).getString(game.id,null);
+        if(path==null)return null;
+        try{java.io.File f=new java.io.File(path).getCanonicalFile();return f.isFile()&&f.getPath().startsWith(getFilesDir().getCanonicalPath()+java.io.File.separator)?f.getPath():null;}
+        catch(java.io.IOException e){return null;}
+    }
+    private void playDownloaded(String path){
+        pendingPlay="";
+        if(selected.console!=Console.NDS){message("Núcleo pendiente","El archivo está descargado. La ejecución de esta consola se habilitará cuando su núcleo esté integrado.");return;}
+        Intent intent=new Intent(this,GameActivity.class).putExtra("rom",path).putExtra("filename",selected.fileName).putExtra("title",selected.title).putExtra("description",selected.description);
+        startActivity(intent);
     }
     private void search() {
         EditText input = new EditText(this); input.setSingleLine(true); input.setText(query); input.setHint("Nombre del juego");
@@ -487,4 +506,5 @@ public class MainActivity extends Activity {
                     .setPositiveButton("Salir", (d,w) -> finish()).setNegativeButton("Cancelar", null).show();
     }
     @Override protected void onDestroy() {drive.detach(driveListener);inputManager.unregisterInputDeviceListener(inputListener);artwork.close(); super.onDestroy(); }
+    @Override protected void onPause(){pendingPlay="";super.onPause();}
 }

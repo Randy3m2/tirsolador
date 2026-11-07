@@ -2,15 +2,18 @@
 
 Launcher de juegos retro para Android TV, con biblioteca remota, descarga bajo demanda y emulación integrada.
 
-## APK actual: 0.3.0 Preview — TirsoDrive nativo
+## APK actual: 0.4.0 Preview — Nintendo DS integrado
 
 El launcher ya tiene código Android nativo. Las [prereleases](https://github.com/Randy3m2/tirsolador/releases)
 publican una APK de prueba con consolas, logos PNG, temas claro/oscuro, favoritos,
 búsqueda, orden alfabético y tema de consola a pantalla completa. La versión 0.3
 incorpora TDLib, bienvenida QR, grupos por consola, sincronización y descarga.
 Consulta [configuración, funciones y límites de TirsoDrive](docs/BUILD_3.md).
-La emulación integrada todavía está pendiente. La sesión real requiere configurar
-las credenciales de la aplicación y aprobar el login desde Telegram.
+La versión 0.4 incorpora el núcleo original melonDS dentro del APK: dos pantallas,
+audio, entrada del control, menú con Atrás, estados y respaldos locales.
+Consulta [funciones y límites de 0.4](docs/BUILD_4.md) y
+[compilación nativa y fuentes](docs/NATIVE_BUILD.md). Nintendo 64 y las demás
+consolas siguen pendientes. La sesión real requiere aprobar el login desde Telegram.
 Los apartados siguientes describen el objetivo completo del proyecto.
 
 ## Objetivo
