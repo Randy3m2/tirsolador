@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "games": [
+    {"id":"nes-mario","console":"NES","title":"Super Mario Bros.","coverName":"Super Mario Bros. (World)","description":"Catálogo de muestra. Aventura de plataformas de NES. Esta preview no contiene archivos de juego."},
+    {"id":"snes-world","console":"SNES","title":"Super Mario World","coverName":"Super Mario World (USA)","description":"Catálogo de muestra. Plataformas de Super Nintendo."},
+    {"id":"md-sonic","console":"MD","title":"Sonic the Hedgehog","coverName":"Sonic the Hedgehog (USA, Europe)","description":"Catálogo de muestra. Plataformas de Sega Mega Drive."},
+    {"id":"gb-tetris","console":"GB","title":"Tetris","coverName":"Tetris (World) (Rev 1)","description":"Catálogo de muestra. Puzles de Game Boy."},
+    {"id":"gbc-crystal","console":"GBC","title":"Pokémon Crystal","coverName":"Pokemon - Crystal Version (USA, Europe) (Rev 1)","description":"Catálogo de muestra. Aventura RPG de Game Boy Color."},
+    {"id":"gba-emerald","console":"GBA","title":"Pokémon Emerald","coverName":"Pokemon - Emerald Version (USA, Europe)","description":"Catálogo de muestra. Explora Hoenn en esta aventura de Game Boy Advance."},
+    {"id":"gba-metroid","console":"GBA","title":"Metroid Fusion","coverName":"Metroid Fusion (USA)","description":"Catálogo de muestra. Exploración y acción de Game Boy Advance."},
+    {"id":"gba-minish","console":"GBA","title":"The Legend of Zelda: The Minish Cap","coverName":"Legend of Zelda, The - The Minish Cap (USA)","description":"Catálogo de muestra. Aventura de Game Boy Advance."},
+    {"id":"n64-mario","console":"N64","title":"Super Mario 64","coverName":"Super Mario 64 (USA)","description":"Catálogo de muestra. Plataformas en 3D de Nintendo 64."},
+    {"id":"mame-pacman","console":"MAME","title":"Pac-Man","coverName":"pacman","description":"Catálogo de muestra. El identificador de carátula arcade depende del set de MAME."},
+    {"id":"nds-mariokart","console":"NDS","title":"Mario Kart DS","coverName":"Mario Kart DS (USA)","description":"Catálogo de muestra. Carreras de Nintendo DS."}
+  ]
+}

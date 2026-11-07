@@ -2,6 +2,14 @@
 
 Launcher de juegos retro para Android TV, con biblioteca remota, descarga bajo demanda y emulación integrada.
 
+## Primera APK: 0.1.0 Preview
+
+El launcher ya tiene código Android nativo. Las [prereleases](https://github.com/Randy3m2/tirsolador/releases)
+publican una APK de prueba con consolas, logos PNG, temas claro/oscuro, favoritos,
+búsqueda e importación de catálogos. Consulta [funciones y límites de la preview](docs/PREVIEW.md).
+La emulación integrada y la conexión Telegram QR todavía están pendientes.
+Los apartados siguientes describen el objetivo completo del proyecto.
+
 ## Objetivo
 
 Crear una experiencia estilo Batocera/launcher de consola para televisores Android:
