@@ -170,6 +170,7 @@ public class MainActivity extends Activity {
         if (id != 0) image.setImageResource(id);
         image.setPadding(dp(14), dp(9), dp(14), dp(9)); return image;
     }
+    private String gameCount(int count) { return count+ (count==1?" juego":" juegos"); }
     private void home() {
         java.util.ArrayList<Console> visible=new java.util.ArrayList<>();
         for(Console c:Console.values())if(library.visible(c))visible.add(c);
@@ -183,9 +184,11 @@ public class MainActivity extends Activity {
         for (Console c : visible) {
             if (index % 3 == 0) { row = horizontal();content.addView(row,new LinearLayout.LayoutParams(-1,0,1)); }
             LinearLayout tile = vertical(); tile.setGravity(Gravity.CENTER);
-            tile.setPadding(dp(18),dp(12),dp(18),dp(8));
-            ImageView logo = logo(c); tile.addView(logo, new LinearLayout.LayoutParams(-1,0,1));
-            TextView name = label(library.count(c) + " juegos", 11, 0xFF526177, false);
+            tile.setPadding(dp(14),dp(6),dp(14),dp(4));
+            ImageView logo = logo(c);logo.setPadding(dp(8),0,dp(8),0);
+            tile.addView(logo, new LinearLayout.LayoutParams(-1,0,1));
+            TextView name = label(gameCount(library.count(c)), 11, 0xFF526177, false);
+            name.setPadding(0,dp(1),0,0);
             name.setGravity(Gravity.CENTER); tile.addView(name);
             tile.setContentDescription(c.title+", "+library.count(c)+" juegos");
             focusable(tile, "console_" + c.name(), library.dark()?0xFFDCE2ED:Color.WHITE, () -> openConsole(c));
@@ -214,7 +217,7 @@ public class MainActivity extends Activity {
         row.addView(icon("back","Consola anterior","hero_prev",()->moveHero(-1)));
         LinearLayout hero=vertical();hero.setGravity(Gravity.CENTER);hero.setPadding(dp(34),dp(34),dp(34),dp(20));
         hero.addView(logo(current),new LinearLayout.LayoutParams(-1,0,1));
-        TextView count=label(library.count(current)+" juegos",13,0xFF526177,false);count.setGravity(Gravity.CENTER);hero.addView(count);
+        TextView count=label(gameCount(library.count(current)),13,0xFF526177,false);count.setGravity(Gravity.CENTER);hero.addView(count);
         hero.setContentDescription(current.title+", "+library.count(current)+" juegos. Abrir biblioteca");
         focusable(hero,"hero_console",library.dark()?0xFFDCE2ED:Color.WHITE,()->openConsole(current));
         hero.setOnKeyListener((v,key,e)->{
