@@ -45,6 +45,7 @@ public class ConsoleExecutionTest {
     @Test public void gameBoyColorBootVideoAudioState()throws Exception{execute(Console.GBC,"diagnostic.gbc",120);}
     @Test public void gameBoyAdvanceBootVideoAudioState()throws Exception{execute(Console.GBA,"diagnostic.gba",120);}
     @Test public void n64BootHardwareVideoAudioState()throws Exception{execute(Console.N64,"n64-systemtest.z64",240);}
+    @Test public void n64DynarecAndHardwareFramebuffer()throws Exception{execute(Console.N64,"diagnostic.z64",120);}
     @Test public void mameBootVideoAudioState()throws Exception{execute(Console.MAME,"gridlee.zip",240);}
     @Test public void gbaAndOtherGroupsCannotCross(){
         assertEquals(Console.GBA,TelegramCatalog.consoleFor("DD-ROMS-GBA"));

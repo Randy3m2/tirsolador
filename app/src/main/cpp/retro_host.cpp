@@ -92,6 +92,9 @@ struct Host {
     std::ifstream f(rom,std::ios::binary|std::ios::ate);auto n=f.tellg();if(n<1||n>512LL*1024*1024)throw std::runtime_error("Archivo de juego inválido");
     content.resize(static_cast<size_t>(n));f.seekg(0);if(!f.read(reinterpret_cast<char*>(content.data()),n))throw std::runtime_error("Archivo de juego incompleto");game.data=content.data();game.size=content.size();
    }
+   // Clean-room homebrew bootstrap can execute directly from cartridge ROM.
+   // Mupen's dynarec rejects that address range; its cached interpreter supports it.
+   if(core=="n64"&&content.size()>=64&&std::all_of(content.begin()+0x10,content.begin()+0x18,[](unsigned char b){return b==0;}))variables["mupen64plus-cpucore"]="cached_interpreter";
    if(!loadGame(&game))throw std::runtime_error(core=="mame"?"MAME no pudo abrir el juego. Verifica el nombre original del ZIP, el romset 2003-Plus y sus archivos BIOS/parent requeridos.":"El núcleo no pudo abrir el juego. Comprueba el archivo y los archivos de sistema requeridos.");
    loaded=true;getAV(&av);if(av.timing.fps<1||av.timing.fps>300||av.timing.sample_rate<1000||av.timing.sample_rate>192000)throw std::runtime_error("El núcleo devolvió un formato de vídeo/audio inválido");
    if(hardware&&hw.context_reset){hw.context_reset();contextReady=true;}

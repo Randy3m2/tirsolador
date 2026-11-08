@@ -75,6 +75,34 @@ c.label('pressed');move_long(0xC0000000,0xC00004);move_word(0x00E0,0xC00000);c.r
 rom=bytearray(65536);struct.pack_into('>2I',rom,0,0xFFFFF0,0x200);rom[0x100:0x110]=b'SEGA MEGA DRIVE ';rom[0x120:0x150]=b'TIRSOLADOR TEST'.ljust(48,b' ')
 struct.pack_into('>4I',rom,0x1A0,0,len(rom)-1,0xFF0000,0xFFFFFF);rom[0x1F0:0x200]=b'JUE'.ljust(16,b' ');b=c.finish();rom[0x200:0x200+len(b)]=b
 struct.pack_into('>H',rom,0x18E,sum(struct.unpack('>%dH'%((len(rom)-512)//2),rom[512:]))&65535);(out/'diagnostic.md').write_bytes(rom)
+# N64: our own clean-room SP boot stub, PI DMA, VI setup and striped framebuffer.
+# Code executes only from SP/RDRAM so it also exercises the production dynarec.
+class Mips:
+    def __init__(self):self.words=[];self.labels={};self.branches=[]
+    def op(self,n):self.words.append(n)
+    def li(self,r,n):self.op(0x3C000000|(r<<16)|((n>>16)&65535));self.op(0x34000000|(r<<21)|(r<<16)|(n&65535))
+    def label(self,name):self.labels[name]=len(self.words)
+    def branch(self,opcode,rs,rt,label):self.branches.append((len(self.words),label));self.op((opcode<<26)|(rs<<21)|(rt<<16));self.op(0)
+    def finish(self):
+        for i,label in self.branches:self.words[i]|=(self.labels[label]-i-1)&65535
+        return struct.pack('>%dI'%len(self.words),*self.words)
+boot=Mips();boot.li(8,0xA4700000);boot.li(9,0x14);boot.op(0xAD09000C)
+boot.li(8,0xA4600000);boot.li(9,0x400);boot.op(0xAD090000);boot.li(9,0x10001000);boot.op(0xAD090004);boot.li(9,4095);boot.op(0xAD09000C)
+boot.label('wait');boot.op(0x8D090010);boot.op(0x31290001);boot.branch(5,9,0,'wait');boot.li(8,0x80000400);boot.op(0x01000008);boot.op(0)
+main=Mips();main.li(8,0xA4400000)
+for offset,value in [(0,0x320E),(4,0x100000),(8,320),(12,2),(16,0),(20,0x03E52239),(24,0x20D),(28,0xC15),(32,0x0C150C15),(36,0x006C02EC),(40,0x002501FF),(44,0x000E0204),(48,0x200),(52,0x400)]:
+    main.li(9,value);main.op(0xAD090000|offset)
+main.li(8,0xA0100000);main.li(10,320*240);main.label('fill');main.op(0x314B0020);main.branch(4,11,0,'red');main.li(9,0x003F);main.branch(4,0,0,'write');main.label('red');main.li(9,0xF801)
+main.label('write');main.op(0xA5090000);main.op(0x25080002);main.op(0x254AFFFF);main.branch(5,10,0,'fill');main.label('forever');main.branch(4,0,0,'forever')
+rom=bytearray(2*1024*1024);struct.pack_into('>4I',rom,0,0x80371240,0x0000000F,0x80000400,0);rom[0x20:0x34]=b'TIRSO FRAME TEST'.ljust(20,b' ');rom[0x3E]=ord('E')
+b=boot.finish();rom[0x40:0x40+len(b)]=b;b=main.finish();rom[0x1000:0x1000+len(b)]=b
+t=[0xF8CA4DDC]*6
+for offset in range(0x1000,0x101000,4):
+    d=struct.unpack_from('>I',rom,offset)[0];n=(t[5]+d)&0xFFFFFFFF
+    if n<t[5]:t[3]=(t[3]+1)&0xFFFFFFFF
+    t[5]=n;t[2]^=d;shift=d&31;r=((d<<shift)|(d>>(32-shift if shift else 32)))&0xFFFFFFFF;t[4]=(t[4]+r)&0xFFFFFFFF
+    t[1]^=r if t[1]>d else t[5]^d;t[0]=(t[0]+(t[4]^d))&0xFFFFFFFF
+struct.pack_into('>2I',rom,0x10,t[5]^t[3]^t[2],t[4]^t[1]^t[0]);(out/'diagnostic.z64').write_bytes(rom)
 # MIT homebrew N64 diagnostic from the author's pinned CI build, including open IPL3.
 with zipfile.ZipFile(root/'tests/fixtures/n64-systemtest.zip') as archive:
     name=next(n for n in archive.namelist() if n.endswith('.z64'));data=archive.read(name)
