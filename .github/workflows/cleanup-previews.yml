@@ -1,0 +1,23 @@
+name: Retire superseded previews
+on:
+  workflow_run:
+    workflows: ['Android APK']
+    types: [completed]
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep stable release, source cores and installed rollback versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Randy3m2/tirsolador
+        run: |
+          if ! gh release view v1.0.0 >/dev/null 2>&1; then exit 0; fi
+          for TAG in preview-3 preview-5 preview-6 preview-7 preview-10 preview-11 preview-12; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release delete "$TAG" --yes
+            fi
+          done
