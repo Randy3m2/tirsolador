@@ -1,7 +1,7 @@
 name: Retire superseded previews
 on:
   workflow_run:
-    workflows: ['Android APK']
+    workflows: ['Android APK', 'Verify built release']
     types: [completed]
 permissions:
   contents: write

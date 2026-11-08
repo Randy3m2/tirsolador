@@ -136,6 +136,8 @@ jobs:
           name: Tirsolador-v1.0.0
           path: dist
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
