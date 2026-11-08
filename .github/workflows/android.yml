@@ -8,7 +8,7 @@ permissions:
   contents: write
 jobs:
   build:
-    if: ${{ !contains(github.event.head_commit.message, '[native-only]') }}
+    if: ${{ github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[native-only]') && !contains(github.event.head_commit.message, '[validation-only]') }}
     needs: smoke-test
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -28,6 +28,10 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
       - name: Prepare pinned melonDS core
         run: bash tools/prepare_core.sh
+      - name: Prepare all source-built console cores
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/prepare_runtime_cores.py
       - name: Restore preview signing key
         uses: actions/cache@v4
         with:
@@ -100,6 +104,11 @@ jobs:
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018' 'cmake;3.22.1'
           bash tools/prepare_core.sh
           python tools/make_test_rom.py app/src/androidTest/assets/diagnostic.nds
+          python tools/make_console_fixtures.py app/src/androidTest/assets
+      - name: Prepare console cores for real execution tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/prepare_runtime_cores.py x86_64
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
@@ -118,3 +127,23 @@ jobs:
         with:
           name: screenshots-build-4
           path: screenshots/
+  signing-recovery:
+    if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[recover-key]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tirsolador-preview-key-v2
+          fail-on-cache-miss: true
+      - name: Encrypt existing signing key for secure migration
+        run: |
+          openssl cms -encrypt -aes-256-cbc -binary -in "$HOME/.android/debug.keystore" -outform DER -out signing-backup.p7m -recip config/signing-backup-cert.pem -keyopt rsa_padding_mode:oaep -keyopt rsa_oaep_md:sha256 -keyopt rsa_mgf1_md:sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-signing-migration
+          path: signing-backup.p7m
+          retention-days: 1

@@ -151,7 +151,7 @@ public class LauncherTest {
         assertEquals(Console.NDS,TelegramCatalog.consoleFor("TD - ROMs - DS"));
         assertEquals(Console.MD,TelegramCatalog.consoleFor("TD - ROMs - Genesis"));
         assertNull(TelegramCatalog.consoleFor("TD - Photos"));assertNull(TelegramCatalog.consoleFor("TD - ROMs - GameCube"));
-        assertEquals("",TelegramCatalog.expectedTitle(Console.GBA));
+        assertEquals("DD-ROMS-GBA",TelegramCatalog.expectedTitle(Console.GBA));
         org.drinkless.tdlib.TdApi.Chat chat=new org.drinkless.tdlib.TdApi.Chat();chat.type=new org.drinkless.tdlib.TdApi.ChatTypePrivate();
         assertFalse(TelegramCatalog.group(chat));chat.type=new org.drinkless.tdlib.TdApi.ChatTypeSupergroup();assertTrue(TelegramCatalog.group(chat));
         org.drinkless.tdlib.TdApi.Message message=new org.drinkless.tdlib.TdApi.Message();message.chatId=-123;message.id=456;

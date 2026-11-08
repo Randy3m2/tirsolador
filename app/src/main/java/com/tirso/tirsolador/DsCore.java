@@ -9,4 +9,5 @@ final class DsCore {
     static native byte[] snapshot(long handle) throws java.io.IOException;
     static native boolean restore(long handle,byte[] bytes) throws java.io.IOException;
     static native void close(long handle);
+    static native boolean flush(long handle);
 }

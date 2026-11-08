@@ -12,6 +12,9 @@ final class TelegramCatalog {
             case SNES:return "TD - ROMs - SNES";
             case MD:return "TD - ROMs - Genesis";
             case GB:return "TD - ROMs - Game Boy";
+            case GBC:return "TD - ROMs - Game Boy Color";
+            case GBA:return "DD-ROMS-GBA";
+            case MAME:return "TD - ROMs - MAME";
             case N64:return "TD - ROMs - N64";
             case NDS:return "TD - ROMs - DS";
             default:return "";
@@ -19,10 +22,19 @@ final class TelegramCatalog {
     }
     static Console consoleFor(String title){
         if(title==null)return null;
-        for(Console c:Console.values())if(!expectedTitle(c).isEmpty()&&expectedTitle(c).equalsIgnoreCase(title.trim()))return c;
-        return null;
+        String normalized=title.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]","");
+        if(!normalized.startsWith("tdroms")&&!normalized.startsWith("ddroms"))return null;
+        String system=normalized.substring(6);
+        switch(system){
+            case "nes":return Console.NES;case "snes":case "supernintendo":return Console.SNES;
+            case "genesis":case "megadrive":case "segamegadrive":return Console.MD;
+            case "gb":case "gameboy":return Console.GB;case "gbc":case "gameboycolor":return Console.GBC;
+            case "gba":case "gameboyadvance":return Console.GBA;case "n64":case "nintendo64":return Console.N64;
+            case "ds":case "nds":case "nintendods":return Console.NDS;case "mame":case "arcade":return Console.MAME;
+            default:return null;
+        }
     }
-    static boolean selectable(String title){return title!=null&&title.startsWith("TD - ROMs - ")&&!title.equalsIgnoreCase("TD - ROMs - GameCube");}
+    static boolean selectable(String title){return consoleFor(title)!=null;}
     static boolean supported(Console c,String file){
         if(file==null)return false;String lower=file.toLowerCase(Locale.ROOT);int dot=lower.lastIndexOf('.');
         if(dot<0)return false;String extension=lower.substring(dot+1);

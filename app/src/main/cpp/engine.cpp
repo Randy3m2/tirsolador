@@ -59,6 +59,7 @@ bool Engine::load(const std::vector<u8>& bytes){
  auto backup=state(); Savestate s(const_cast<u8*>(bytes.data()),bytes.size(),false);
  bool ok=!s.Error&&nds->DoSavestate(&s)&&!s.Error;
  if(!ok){Savestate rollback(backup.data(),backup.size(),false);nds->DoSavestate(&rollback);}
+ if(ok){auto n=nds->GetNDSSaveLength();auto* p=nds->GetNDSSave();if(p&&n){dirtySave.assign(p,p+n);ok=flush();}}
  return ok;
 }
 namespace melonDS::Platform {

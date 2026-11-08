@@ -49,6 +49,9 @@ final class TirsoDrive {
     private int clientGeneration;
     private boolean starting,logoutRequested,restartRequested,parametersSent,qrRequested;
     private int lastDownloadPercent=-1;
+    private final java.util.LinkedHashSet<Console> refreshQueue=new java.util.LinkedHashSet<>();
+    private final Set<Integer> deletingFiles=new HashSet<>();
+    private final Map<Integer,Game> playAfterDelete=new HashMap<>();
     private TirsoDrive(Context context){
         this.context=context;prefs=context.getSharedPreferences("tirsodrive",Context.MODE_PRIVATE);secrets=new SecretStore(context);
         for(Console c:Console.values())sources.put(c,new Source(c));
@@ -206,13 +209,14 @@ final class TirsoDrive {
             source.candidates.clear();source.chatId=0;source.title="";
             for(TdApi.Chat chat:chats.values())if(TelegramCatalog.group(chat)&&TelegramCatalog.consoleFor(chat.title)==source.console)source.candidates.add(chat);
             long existing=saved.optLong(source.console.name(),0);
-            if(existing!=0&&chats.containsKey(existing)&&TelegramCatalog.group(chats.get(existing))){source.chatId=existing;source.title=chats.get(existing).title;}
+            if(existing!=0&&chats.containsKey(existing)&&TelegramCatalog.group(chats.get(existing))&&(TelegramCatalog.consoleFor(chats.get(existing).title)==null||TelegramCatalog.consoleFor(chats.get(existing).title)==source.console)){source.chatId=existing;source.title=chats.get(existing).title;}
             else if(source.candidates.size()==1){source.chatId=source.candidates.get(0).id;source.title=source.candidates.get(0).title;}
+            if(source.console==Console.GBA)for(TdApi.Chat candidate:source.candidates)if(candidate.title.replaceAll("[^a-zA-Z0-9]","").equalsIgnoreCase("DDROMSGBA")){source.chatId=candidate.id;source.title=candidate.title;}
             source.issue=source.chatId!=0?"Asignado":source.candidates.size()>1?"Elige el grupo correcto":"Sin grupo asignado";
             if(source.chatId!=0)found++;
         }
         persistBindings();discovering=false;status=found+" consolas con grupo asignado";publish(false);
-        if(found>0&&!onboarded())sync();
+        if(found>0)sync();else drainRefresh();
     }
     private void persistBindings(){
         JSONObject value=new JSONObject();try{for(Source s:sources.values())if(s.chatId!=0)value.put(s.console.name(),s.chatId);}catch(Exception ignored){ }
@@ -238,10 +242,28 @@ final class TirsoDrive {
         syncing=true;error="";int token=++generation;
         history(bound,0,0,new HashSet<>(),new ArrayList<>(),token);
     }
+    void refresh(Console console){
+        if(console==null){sync();return;}
+        refreshQueue.add(console);
+        if(stage==Stage.READY)drainRefresh();
+    }
+    private void drainRefresh(){
+        if(stage!=Stage.READY||syncing||discovering||refreshQueue.isEmpty())return;
+        Console console=refreshQueue.iterator().next();Source source=sources.get(console);
+        if(source.chatId==0){
+            // Re-discover exact aliases, including newly introduced GBA/GBC/MAME groups.
+            List<TdApi.Chat> matches=new ArrayList<>();for(TdApi.Chat chat:chats.values())if(TelegramCatalog.group(chat)&&TelegramCatalog.consoleFor(chat.title)==console)matches.add(chat);
+            if(matches.size()==1){source.chatId=matches.get(0).id;source.title=matches.get(0).title;source.issue="Asignado";persistBindings();}
+            if(source.chatId==0){refreshQueue.remove(console);status=console.title+": revisa el grupo en Fuentes";publish(false);drainRefresh();return;}
+        }
+        refreshQueue.remove(console);syncing=true;error="";
+        List<Game> retained=new ArrayList<>();for(Game g:new Library(context).games)if(g.telegramAccount==accountId&&g.console!=console)retained.add(g);
+        List<Source> one=new ArrayList<>();one.add(source);history(one,0,0,new HashSet<>(),retained,++generation);
+    }
     private void history(List<Source> bound,int index,long cursor,Set<Long> seen,List<Game> games,int token){
         if(token!=generation||!syncing)return;
         if(index>=bound.size()){
-            try{new Library(context).replaceTelegram(games);status="Catálogo actualizado: "+games.size()+" juegos";error="";syncing=false;publish(true);}
+            try{new Library(context).replaceTelegram(games);status="Catálogo actualizado: "+games.size()+" juegos";error="";syncing=false;publish(true);main.post(this::drainRefresh);}
             catch(Exception e){syncing=false;error="No se pudo guardar el catálogo. Se conservó la biblioteca anterior.";publish(false);}return;
         }
         if(games.size()>=50000||seen.size()>=100000){syncing=false;error="El grupo supera la capacidad de esta versión. Se conservó el catálogo anterior.";publish(false);return;}
@@ -262,25 +284,39 @@ final class TirsoDrive {
     }
     void cancelSync(){if(syncing||discovering){generation++;syncing=false;discovering=false;status="Actualización cancelada. Se conservó el catálogo anterior.";publish(false);}}
     void inspectFile(Game game){if(stage==Stage.READY&&game.telegramAccount==accountId&&game.fileId>0){watchedFiles.add(game.fileId);send(new TdApi.GetFile(game.fileId),r->{if(r instanceof TdApi.File)fileUpdated((TdApi.File)r);});}}
-    TdApi.File file(Game game){return files.get(game.fileId);}
+    TdApi.File file(Game game){TdApi.File f=files.get(game.fileId);return f!=null&&f.local.isDownloadingCompleted&&!new File(f.local.path).isFile()?null:f;}
     boolean owns(Game game){Source s=sources.get(game.console);return stage==Stage.READY&&game.telegramAccount==accountId&&s.chatId==game.chatId&&game.fileId>0;}
     void download(Game game){
-        if(!owns(game)){error="Conecta la cuenta y el grupo de este juego antes de descargar.";publish(false);return;}
+        if(deletingFiles.contains(game.fileId)){playAfterDelete.put(game.fileId,game);return;}
+        if(!owns(game)){error="Conecta la cuenta y el grupo de este juego antes de jugar.";publish(false);return;}
         android.os.StatFs space=new android.os.StatFs(context.getFilesDir().getAbsolutePath());
         if(space.getAvailableBytes()<game.fileSize+64L*1024*1024){error="No hay suficiente espacio libre en la TV para este archivo.";publish(false);return;}
         requestedDownloads.add(game.fileId);watchedFiles.add(game.fileId);lastDownloadPercent=-1;error="";
+        send(new TdApi.GetFile(game.fileId),r->{
+            if(r instanceof TdApi.File&&((TdApi.File)r).local.isDownloadingCompleted&&!new File(((TdApi.File)r).local.path).isFile()){
+                deletingFiles.add(game.fileId);send(new TdApi.DeleteFile(game.fileId),ignored->{deletingFiles.remove(game.fileId);startDownload(game);});
+            }else startDownload(game);
+        });
+    }
+    private void startDownload(Game game){
+        if(!requestedDownloads.contains(game.fileId)||!owns(game))return;
         send(new TdApi.DownloadFile(game.fileId,16,0,0,false),r->{
             if(r instanceof TdApi.File)fileUpdated((TdApi.File)r);
             else if(r instanceof TdApi.Error){requestedDownloads.remove(game.fileId);fail((TdApi.Error)r);}
         });
     }
-    void cancelDownload(Game game){checked(new TdApi.CancelDownloadFile(game.fileId,false));requestedDownloads.remove(game.fileId);}
+    void cancelDownload(Game game){checked(new TdApi.CancelDownloadFile(game.fileId,false));requestedDownloads.remove(game.fileId);releaseRom(game.fileId,game.telegramAccount);}
     private void fileUpdated(TdApi.File file){
         if(!watchedFiles.contains(file.id))return;
         files.put(file.id,file);
         if(!requestedDownloads.contains(file.id)){publish(false);return;}
         int percent=(int)Math.min(100,file.local.downloadedSize*100/Math.max(1,Math.max(file.size,file.expectedSize)));
-        if(file.local.isDownloadingCompleted){requestedDownloads.remove(file.id);status="Archivo descargado en la TV";publish(false);}
+        if(file.local.isDownloadingCompleted){requestedDownloads.remove(file.id);status="Listo para jugar";publish(false);}
         else if(percent!=lastDownloadPercent){lastDownloadPercent=percent;publish(false);}
     }
+    void releaseRom(int fileId,long account){main.post(()->{
+        if(fileId<1||account!=accountId||client==null)return;
+        deletingFiles.add(fileId);files.remove(fileId);requestedDownloads.remove(fileId);watchedFiles.remove(fileId);
+        send(new TdApi.DeleteFile(fileId),result->{deletingFiles.remove(fileId);Game next=playAfterDelete.remove(fileId);publish(false);if(next!=null)download(next);});
+    });}
 }

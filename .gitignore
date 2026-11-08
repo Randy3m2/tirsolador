@@ -14,3 +14,6 @@ native-build/
 native-dist/
 app/src/main/jniLibs/
 app/.cxx/
+app/src/androidTest/assets/diagnostic.*
+app/src/androidTest/assets/gridlee.zip
+app/src/androidTest/assets/n64-systemtest.z64

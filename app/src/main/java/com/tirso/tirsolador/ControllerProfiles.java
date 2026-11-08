@@ -37,6 +37,8 @@ final class ControllerProfiles {
     }
     float deadzone(InputDevice d) { return prefs.getFloat(key(d)+":left_deadzone",.20f); }
     void deadzone(InputDevice d,float value) { prefs.edit().putFloat(key(d)+":left_deadzone",value).apply(); }
+    int player(InputDevice d){return prefs.getInt(key(d)+":player",-1);}
+    void player(InputDevice d,int port){prefs.edit().putInt(key(d)+":player",port).apply();}
     State state(int id) { State s=states.get(id);if(s==null){s=new State();states.put(id,s);}return s; }
     void disconnect(int id) { states.remove(id); }
     static int direction(float x,float y,float threshold) {

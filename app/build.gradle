@@ -21,8 +21,11 @@ android {
     signingConfigs { debug { storeFile file(System.getProperty('user.home') + '/.android/debug.keystore') } }
     ndkVersion '27.2.12479018'
     externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+    packaging { jniLibs { useLegacyPackaging true } }
 }
 dependencies {
+    implementation 'org.apache.commons:commons-compress:1.27.1'
+    implementation 'org.tukaani:xz:1.10'
     implementation 'io.github.tdlib-android:core:0.1.1'
     implementation 'com.google.zxing:core:3.5.3'
     androidTestImplementation 'androidx.test:runner:1.6.2'
