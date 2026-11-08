@@ -114,6 +114,17 @@ public class LauncherTest {
         assertEquals(1f,first.rightY,0f);assertEquals(0f,second.leftX,0f);
         profiles.disconnect(101);assertNotSame(first,profiles.state(101));
     }
+    @Test public void modernConsoleVisibilityCardsPersist() throws Throwable {
+        Library library=new Library(rule.getActivity());boolean wasVisible=library.visible(Console.GBA);
+        try{
+            rule.runOnUiThread(()->{
+                rule.getActivity().getWindow().getDecorView().findViewWithTag("nav_settings").performClick();
+                for(Console c:Console.values())assertNotNull(rule.getActivity().getWindow().getDecorView().findViewWithTag("visible_"+c.name()));
+                rule.getActivity().getWindow().getDecorView().findViewWithTag("visible_GBA").performClick();assertEquals(!wasVisible,new Library(rule.getActivity()).visible(Console.GBA));
+                View card=rule.getActivity().getWindow().getDecorView().findViewWithTag("visible_GBA");card.requestFocus();card.requestRectangleOnScreen(new android.graphics.Rect(0,0,card.getWidth(),card.getHeight()),true);
+            });capture("07-settings-consoles");
+        }finally{library.visible(Console.GBA,wasVisible);}
+    }
     private void capture(String name) throws Exception {
         android.app.Instrumentation instrumentation=InstrumentationRegistry.getInstrumentation();
         instrumentation.waitForIdleSync();

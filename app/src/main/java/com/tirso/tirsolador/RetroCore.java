@@ -8,4 +8,5 @@ final class RetroCore {
     static native boolean restore(long handle,byte[] bytes) throws java.io.IOException;
     static native boolean flush(long handle);
     static native void close(long handle);
+    static native void diagnostics(boolean enabled);
 }

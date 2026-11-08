@@ -19,6 +19,7 @@ public class ConsoleExecutionTest {
     private void execute(Console console,String fixture,int frames)throws Exception{
         File file=fixture(fixture);GameStorage storage=new GameStorage(context(),file,fixture,console);
         File system=new File(context().getFilesDir(),"bios");system.mkdirs();
+        RetroCore.diagnostics(console==Console.N64);
         long handle=RetroCore.open(CoreRegistry.library(context(),console).getPath(),storage.rom.getPath(),storage.dir.getPath(),system.getPath(),CoreRegistry.key(console));
         try{
             int[] pixels=new int[1024*1024],keys=new int[4];short[] audio=new short[16384];float[] axes=new float[16];int samples=0;
@@ -34,8 +35,8 @@ public class ConsoleExecutionTest {
             keys[0]=(1<<8)|(1<<2)|(1<<3);for(int i=0;i<6;i++)RetroCore.frame(handle,keys,axes,pixels,audio);
             assertTrue(console+" state restore",RetroCore.restore(handle,storage.loadState()));assertTrue(RetroCore.flush(handle));
             ByteArrayOutputStream backup=new ByteArrayOutputStream();storage.backup(backup);assertTrue(backup.size()>0);
-            int[] image=pixels;android.util.Log.i("TirsoValidation",console+": PASS "+width+"x"+height+"; audio="+samples+"; state="+state.length);
-        }finally{RetroCore.close(handle);storage.cleanup();}
+            android.util.Log.i("TirsoValidation",console+": PASS "+width+"x"+height+"; audio="+samples+"; state="+state.length);
+        }finally{RetroCore.close(handle);RetroCore.diagnostics(false);storage.cleanup();}
     }
     @Test public void nesBootVideoAudioState()throws Exception{execute(Console.NES,"diagnostic.nes",120);}
     @Test public void snesBootVideoAudioState()throws Exception{execute(Console.SNES,"diagnostic.sfc",120);}

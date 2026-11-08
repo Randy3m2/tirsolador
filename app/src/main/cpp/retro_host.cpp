@@ -24,6 +24,7 @@ constexpr unsigned MAX_WIDTH=1024,MAX_HEIGHT=1024;
 std::mutex sessionMutex;
 struct Host;
 Host* active=nullptr; // One lifetime lease, including callbacks on core-owned threads.
+bool diagnosticLogging=false;
 struct Host {
  std::unique_lock<std::mutex> lease;
  void* library=nullptr;
@@ -64,8 +65,8 @@ struct Host {
   if(device==RETRO_DEVICE_ANALOG&&index<2&&id<2)return h->axes[port][index*2+id];return 0;
  }
  static void log(enum retro_log_level level,const char* fmt,...){
-  if(level<RETRO_LOG_WARN||!active)return;char text[1024];va_list a;va_start(a,fmt);vsnprintf(text,sizeof(text),fmt,a);va_end(a);
-  active->logMessage=text;__android_log_print(ANDROID_LOG_WARN,"TirsoCore","%s",text);
+  if((level<RETRO_LOG_WARN&&!diagnosticLogging)||!active)return;char text[1024];va_list a;va_start(a,fmt);vsnprintf(text,sizeof(text),fmt,a);va_end(a);
+  if(level>=RETRO_LOG_WARN)active->logMessage=text;__android_log_print(level>=RETRO_LOG_WARN?ANDROID_LOG_WARN:ANDROID_LOG_INFO,"TirsoCore","%s",text);
  }
  static uintptr_t framebuffer(){return active?active->fbo:0;}
  static retro_proc_address_t proc(const char* name){return reinterpret_cast<retro_proc_address_t>(eglGetProcAddress(name));}
@@ -219,3 +220,4 @@ extern "C" JNIEXPORT jbyteArray JNICALL Java_com_tirso_tirsolador_RetroCore_snap
 extern "C" JNIEXPORT jboolean JNICALL Java_com_tirso_tirsolador_RetroCore_restore(JNIEnv* e,jclass,jlong handle,jbyteArray data){int n=e->GetArrayLength(data);if(n<1||n>64*1024*1024)return false;std::vector<unsigned char>b(n);e->GetByteArrayRegion(data,0,n,reinterpret_cast<jbyte*>(b.data()));try{return reinterpret_cast<Host*>(handle)->restore(b);}catch(const std::exception& x){fail(e,x.what());return false;}}
 extern "C" JNIEXPORT jboolean JNICALL Java_com_tirso_tirsolador_RetroCore_flush(JNIEnv*,jclass,jlong handle){return reinterpret_cast<Host*>(handle)->flush();}
 extern "C" JNIEXPORT void JNICALL Java_com_tirso_tirsolador_RetroCore_close(JNIEnv*,jclass,jlong handle){delete reinterpret_cast<Host*>(handle);}
+extern "C" JNIEXPORT void JNICALL Java_com_tirso_tirsolador_RetroCore_diagnostics(JNIEnv*,jclass,jboolean enabled){diagnosticLogging=enabled;}
