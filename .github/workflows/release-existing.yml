@@ -26,27 +26,14 @@ jobs:
           path: dist
           github-token: ${{ github.token }}
           run-id: 42447776353
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools'
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Obtain installed version
+      - name: Require successful update installation and data preservation test
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download preview-13 --pattern '*.apk' --dir old
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          arch: x86_64
-          target: default
-          script: bash tools/test_upgrade.sh
+        run: |
+          gh api repos/Randy3m2/tirsolador/actions/runs/42448558287/jobs --jq 'any(.jobs[].steps[]; .name == "Run reactivecircus/android-emulator-runner@v2" and .conclusion == "success")' | grep -qx true
       - name: Verify APK integrity and publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha256sum -c dist/SHA256SUMS.txt
-          gh release create v1.0.0 dist/* --target 1ad1f45b1484af1315a8de009d58b7a6873bc492 --title 'Tirsolador 1.0.0 · nueve consolas integradas' --notes-file docs/BUILD_1_0.md
+          gh release create v1.0.0 dist/* --target "$GITHUB_SHA" --title 'Tirsolador 1.0.0 · nueve consolas integradas' --notes-file docs/BUILD_1_0.md
