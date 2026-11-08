@@ -64,9 +64,14 @@ public class EmulationTest {
         try{
             Thread.sleep(1800);InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             android.app.UiAutomation ui=InstrumentationRegistry.getInstrumentation().getUiAutomation();
-            android.view.accessibility.AccessibilityNodeInfo root=ui.getRootInActiveWindow();assertNotNull(root);
-            assertFalse(root.findAccessibilityNodeInfosByText("Guardar estado").isEmpty());
+            boolean found=false;long deadline=android.os.SystemClock.uptimeMillis()+5000;
+            while(android.os.SystemClock.uptimeMillis()<deadline){
+                android.view.accessibility.AccessibilityNodeInfo root=ui.getRootInActiveWindow();
+                if(root!=null&&!root.findAccessibilityNodeInfosByText("Guardar estado").isEmpty()){found=true;break;}
+                Thread.sleep(100);
+            }
             try(android.os.ParcelFileDescriptor fd=ui.executeShellCommand("mkdir -p /sdcard/Download/tirsolador-screenshots && screencap -p /sdcard/Download/tirsolador-screenshots/06-ds-pause.png");InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(in.read()!=-1){}}
+            assertTrue("Atrás debe abrir el menú del juego",found);
         }finally{InstrumentationRegistry.getInstrumentation().runOnMainSync(activity::finish);}
     }
 }

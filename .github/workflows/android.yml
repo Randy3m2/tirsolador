@@ -103,8 +103,7 @@ jobs:
           target: default
           disable-animations: true
           script: |
-            gradle --no-daemon -PtirsoAbis=x86_64 :app:connectedDebugAndroidTest
-            adb pull /sdcard/Download/tirsolador-screenshots screenshots
+            bash tools/test_android.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
