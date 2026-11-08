@@ -37,23 +37,28 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: tirsolador-preview-key-v2
-      - name: Prepare preview signing key at the configured path
+      - name: Prepare existing application signing key
+        env:
+          TIRSO_SIGNING_KEY_B64: ${{ secrets.TIRSO_SIGNING_KEY_B64 }}
         run: bash tools/prepare_preview_key.sh
       - name: Build and lint
         env:
           TIRSO_TELEGRAM_API_HASH: ${{ secrets.TIRSO_TELEGRAM_API_HASH }}
-        run: gradle --no-daemon :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest
+        run: gradle --no-daemon :app:assembleRelease :app:lintRelease
       - name: Package APK
         env:
+          GH_TOKEN: ${{ github.token }}
           TIRSO_TELEGRAM_API_HASH: ${{ secrets.TIRSO_TELEGRAM_API_HASH }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Tirsolador-v0.4.0-preview.apk
+          cp app/build/outputs/apk/release/app-release.apk dist/Tirsolador-v1.0.0.apk
           mkdir -p source
           git archive HEAD | tar -x -C source
           mkdir -p source/app/src/main/cpp/upstream
           git -C app/src/main/cpp/upstream archive HEAD | tar -x -C source/app/src/main/cpp/upstream
-          tar -czf dist/Tirsolador-v0.4.0-source.tar.gz -C source .
+          gh release download native-1 --repo Randy3m2/tirsolador --pattern core-sources.tar.gz --dir /tmp/tirso-native-sources
+          tar -xzf /tmp/tirso-native-sources/core-sources.tar.gz -C source
+          tar -czf dist/Tirsolador-v1.0.0-source.tar.gz -C source .
           sha256sum dist/*.apk > dist/SHA256SUMS.txt
           if [ -n "$TIRSO_TELEGRAM_API_HASH" ]; then
             printf 'Telegram credentials: supplied by CI secret. Account authorization still requires QR.\n' > dist/BUILD_STATUS.txt
@@ -62,20 +67,13 @@ jobs:
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Tirsolador-v0.4.0-preview
+          name: Tirsolador-v1.0.0
           path: dist/*
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: validation-reports
           path: app/build/reports/
-      - name: Publish preview release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="preview-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.4.0 · Nintendo DS integrado" --notes-file docs/BUILD_4.md
   smoke-test:
     if: ${{ !contains(github.event.head_commit.message, '[native-only]') }}
     runs-on: ubuntu-latest
@@ -125,25 +123,45 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: screenshots-build-4
+          name: screenshots-v1
           path: screenshots/
-  signing-recovery:
-    if: ${{ github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[recover-key]') }}
+  upgrade-check:
+    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache/restore@v4
+      - uses: actions/download-artifact@v4
         with:
-          path: ~/.android/debug.keystore
-          key: tirsolador-preview-key-v2
-          fail-on-cache-miss: true
-      - name: Encrypt existing signing key for secure migration
+          name: Tirsolador-v1.0.0
+          path: dist
+      - uses: android-actions/setup-android@v3
+      - name: Enable KVM
         run: |
-          openssl cms -encrypt -aes-256-cbc -binary -in "$HOME/.android/debug.keystore" -outform DER -out signing-backup.p7m -recip config/signing-backup-cert.pem -keyopt rsa_padding_mode:oaep -keyopt rsa_oaep_md:sha256 -keyopt rsa_mgf1_md:sha256
-      - uses: actions/upload-artifact@v4
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Obtain installed version for update test
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download preview-13 --pattern '*.apk' --dir old
+      - uses: reactivecircus/android-emulator-runner@v2
         with:
-          name: encrypted-signing-migration
-          path: signing-backup.p7m
-          retention-days: 1
+          api-level: 29
+          arch: x86_64
+          target: default
+          script: bash tools/test_upgrade.sh
+  publish:
+    needs: [build, upgrade-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Tirsolador-v1.0.0
+          path: dist
+      - name: Publish verified APK and corresponding sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create v1.0.0 dist/* --title 'Tirsolador 1.0.0 · nueve consolas integradas' --notes-file docs/BUILD_1_0.md

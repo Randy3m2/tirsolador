@@ -114,7 +114,7 @@ final class GameStorage {
         try{
             for(String name:files.keySet()){
                 File f=new File(dir,name),saved=null;
-                if(f.exists()){saved=File.createTempFile("restore-old-",".bak",workspace);old.put(name,saved);copyAtomic(f,saved);}else old.put(name,null);
+                if(f.exists()){saved=File.createTempFile("restore-old-",".bak",dir.getParentFile());old.put(name,saved);copyAtomic(f,saved);}else old.put(name,null);
             }
             try{for(Map.Entry<String,byte[]>e:files.entrySet()){File target=new File(dir,e.getKey());File parent=target.getParentFile();if(!parent.isDirectory()&&!parent.mkdirs())throw new IOException("No se pudo crear la carpeta del respaldo");write(target,e.getValue());}}
             catch(Exception x){

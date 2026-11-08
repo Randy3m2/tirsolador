@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
             else if(page.equals("detail"))updateDownload();
             else if(!drive.error.isEmpty()&&!drive.error.equals(lastDriveError))Toast.makeText(this,drive.error,Toast.LENGTH_LONG).show();
             lastDriveError=drive.error;
-            if(catalogStatus!=null&&page.equals("library"))catalogStatus.setText(drive.syncing?"Actualizando tu colección…":drive.error.isEmpty()?"Actualizada automáticamente":drive.error);
+            if(catalogStatus!=null&&page.equals("library"))catalogStatus.setText(catalogMessage());
         };
         drive.attach(driveListener);drive.start();
     }
@@ -324,13 +324,20 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);p.setMargins(dp(16),dp(14),dp(16),dp(8));row.addView(hero,p);
         row.addView(icon("next","Consola siguiente","hero_next",()->moveHero(1)));
     }
+    private String catalogMessage(){
+        if(drive.stage!=TirsoDrive.Stage.READY)return "Conecta TirsoDrive para actualizar tu colección";
+        if(drive.syncing||drive.discovering)return "Actualizando tu colección…";
+        if(!drive.error.isEmpty())return drive.error;
+        if(console!=null&&drive.sources.get(console).chatId==0)return "Vincula "+TelegramCatalog.expectedTitle(console)+" en TirsoDrive";
+        return "Actualizada automáticamente";
+    }
     private void libraryScreen() {
         List<Game> games = library.filtered(console, favorites, query);
         LinearLayout summary=horizontal();
         summary.addView(label(games.size()+" juegos  ·  "+(library.descending()?"Z – A":"A – Z")+(query.isEmpty()?"":"  ·  "+query),12,muted,false),new LinearLayout.LayoutParams(0,-2,1));
         if(!query.isEmpty())summary.addView(button("Limpiar","clear",()->{query="";libraryScroll=0;lastFocus="";render();}));
         body.addView(summary);
-        catalogStatus=label(drive.syncing?"Actualizando tu colección…":"Actualizada al abrir",11,muted,false);body.addView(catalogStatus);
+        catalogStatus=label(catalogMessage(),11,muted,false);body.addView(catalogStatus);
         int columns=getResources().getConfiguration().screenWidthDp>=800?6:5;
         LinearLayout grid = scrollContent(); LinearLayout row = null; int index = 0;
         for (Game game : games.subList(0,Math.min(visibleGames,games.size()))) {
@@ -398,8 +405,8 @@ public class MainActivity extends Activity {
         else if(cachedRom(selected)!=null){downloadLabel.setText("Listo para jugar · "+size);downloadButton.setText("Jugar");downloadButton.setEnabled(true);if(playProgress!=null)playProgress.setVisibility(View.GONE);}
         else if(file!=null&&file.local.isDownloadingActive){
             int percent=(int)Math.min(100,file.local.downloadedSize*100/Math.max(1,Math.max(file.size,file.expectedSize)));
-            downloadLabel.setText("Preparando tu juego · "+percent+"%");downloadButton.setText("Jugar");downloadButton.setEnabled(false);if(playProgress!=null){playProgress.setVisibility(View.VISIBLE);playProgress.setProgress(percent);}
-        }else{downloadLabel.setText(size+" · "+(drive.owns(selected)?"Desde tu colección TirsoDrive":"Conecta TirsoDrive para jugar"));downloadButton.setText("Jugar");downloadButton.setEnabled(true);if(playProgress!=null)playProgress.setVisibility(View.GONE);}
+            downloadLabel.setText("Preparando tu juego · "+percent+"%");downloadButton.setText("Jugar");downloadButton.setEnabled(false);if(playProgress!=null){playProgress.setVisibility(View.VISIBLE);playProgress.setIndeterminate(false);playProgress.setProgress(percent);}
+        }else if(pendingPlay.equals(selected.id)&&drive.error.isEmpty()){downloadLabel.setText("Preparando tu juego…");downloadButton.setEnabled(false);if(playProgress!=null){playProgress.setVisibility(View.VISIBLE);playProgress.setIndeterminate(true);}}else{pendingPlay="";downloadLabel.setText(size+" · "+(drive.owns(selected)?"Desde tu colección TirsoDrive":"Conecta TirsoDrive para jugar"));downloadButton.setText("Jugar");downloadButton.setEnabled(true);if(playProgress!=null)playProgress.setVisibility(View.GONE);}
         if(!drive.error.isEmpty())downloadLabel.setText(drive.error);
     }
     private void playSelected(){
@@ -506,7 +513,7 @@ public class MainActivity extends Activity {
             .setNeutralButton("Diagnóstico",(d,w)->{
                 ControllerProfiles.State s=controllers.state(device.getId());
                 message("Entradas independientes",String.format(java.util.Locale.ROOT,
-                    "ID: %04x:%04x\nD-pad teclas: %d, %d\nD-pad HAT: %d, %d\nStick izquierdo: %.2f, %.2f\nStick derecho: %.2f, %.2f\n\nCada origen mantiene su estado separado. El remapeo de emulación se añadirá con los núcleos.",
+                    "ID: %04x:%04x\nD-pad teclas: %d, %d\nD-pad HAT: %d, %d\nStick izquierdo: %.2f, %.2f\nStick derecho: %.2f, %.2f\n\nCada origen mantiene su estado separado. Los núcleos usan perfiles independientes por control y por jugador, sin mezclar D-pad y joystick.",
                     device.getVendorId(),device.getProductId(),s.keyX,s.keyY,s.hatX,s.hatY,s.leftX,s.leftY,s.rightX,s.rightY));
             }).setNegativeButton("Jugador",(d,w)->new AlertDialog.Builder(this).setTitle("Asignar mando")
                 .setSingleChoiceItems(new String[]{"Automático","Jugador 1","Jugador 2","Jugador 3","Jugador 4"},controllers.player(device)+1,(x,which)->{controllers.player(device,which-1);x.dismiss();}).show()).setPositiveButton("Listo",null).show();
