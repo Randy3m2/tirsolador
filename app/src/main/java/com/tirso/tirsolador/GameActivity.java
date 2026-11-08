@@ -26,6 +26,7 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
     private final int[] pixels=new int[256*384];
     private final short[] samples=new short[4096];
     private AlertDialog pauseDialog;
+    private final java.util.List<AlertDialog> dialogs=new java.util.ArrayList<>();
     private String title,description;
     private InputManager manager;
     private int frames;
@@ -83,35 +84,40 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
     @Override protected void onPause(){foreground=false;if(ready)menu=true;resetInput();super.onPause();}
     @Override protected void onDestroy(){
         closed=true;resetInput();manager.unregisterInputDeviceListener(this);
+        for(AlertDialog d:new java.util.ArrayList<>(dialogs))d.dismiss();
         worker.execute(()->{if(handle!=0){DsCore.close(handle);handle=0;}if(audio!=null){audio.pause();audio.flush();audio.release();audio=null;}});worker.shutdown();super.onDestroy();
     }
     private void error(Throwable e,boolean finish){runOnUiThread(()->{
         if(isFinishing()||isDestroyed())return;
-        new AlertDialog.Builder(this).setTitle("Nintendo DS").setMessage(e.getMessage()==null?"No se pudo ejecutar el juego":e.getMessage())
+        dialog().setTitle("Nintendo DS").setMessage(e.getMessage()==null?"No se pudo ejecutar el juego":e.getMessage())
             .setPositiveButton(finish?"Volver":"Menú",(d,w)->{if(finish)finish();else pauseMenu();}).setCancelable(false).show();
     });}
     private void task(Work work){worker.execute(()->{try{if(handle==0)throw new IOException("El juego todavía se está preparando");work.run();}catch(Exception e){error(e,false);}});}
     private interface Work{void run()throws Exception;}
+    private AlertDialog.Builder dialog(){return new AlertDialog.Builder(this){
+        @Override public AlertDialog create(){AlertDialog d=super.create();dialogs.add(d);d.setOnDismissListener(x->dialogs.remove(d));return d;}
+        @Override public AlertDialog show(){AlertDialog d=create();d.show();return d;}
+    };}
     private void toast(String text){runOnUiThread(()->Toast.makeText(this,text,Toast.LENGTH_LONG).show());}
     @Override public void onBackPressed(){pauseMenu();}
     private void pauseMenu(){
         if(closed||isFinishing()||(pauseDialog!=null&&pauseDialog.isShowing()))return;
         menu=true;resetInput();
         String[] options={"Continuar","Ver información del juego",showFps?"Ocultar FPS":"Mostrar FPS","Guardar estado · Ranura 1","Cargar estado · Ranura 1","Respaldar partidas","Restaurar partidas","Reiniciar juego","Salir del juego"};
-        pauseDialog=new AlertDialog.Builder(this).setTitle(title).setItems(options,(d,which)->{
+        pauseDialog=dialog().setTitle(title).setItems(options,(d,which)->{
             d.dismiss();pauseDialog=null;
             switch(which){
                 case 0:menu=false;break;
-                case 1:new AlertDialog.Builder(this).setTitle(title).setMessage((description==null?"":description)+"\n\nmelonDS integrado · 256 × 192 por pantalla\nResolución nativa · Audio estéreo\nStick derecho: cursor · R3: tocar\nStick izquierdo y cruceta: direcciones independientes\nEstado y partida: almacenamiento local")
+                case 1:dialog().setTitle(title).setMessage((description==null?"":description)+"\n\nmelonDS integrado · 256 × 192 por pantalla\nResolución nativa · Audio estéreo\nStick derecho: cursor · R3: tocar\nStick izquierdo y cruceta: direcciones independientes\nEstado y partida: almacenamiento local")
                     .setPositiveButton("Menú",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
                 case 2:showFps=!showFps;screen.invalidate();pauseMenu();break;
                 case 3:task(()->{storage.saveState(DsCore.snapshot(handle));toast("Estado guardado");runOnUiThread(this::pauseMenu);});break;
-                case 4:new AlertDialog.Builder(this).setTitle("¿Cargar el estado guardado?").setMessage("Se reemplazará el progreso actual en memoria.").setPositiveButton("Cargar",(x,w)->task(()->{
+                case 4:dialog().setTitle("¿Cargar el estado guardado?").setMessage("Se reemplazará el progreso actual en memoria.").setPositiveButton("Cargar",(x,w)->task(()->{
                     if(!DsCore.restore(handle,storage.loadState()))throw new IOException("No se pudo cargar el estado");resetInput();toast("Estado cargado");runOnUiThread(this::pauseMenu);
                 })).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
                 case 5:chooseBackup(false);break;
-                case 6:new AlertDialog.Builder(this).setTitle("¿Restaurar un respaldo?").setMessage("Reemplazará las partidas incluidas en el respaldo y reiniciará el juego.").setPositiveButton("Elegir respaldo",(x,w)->chooseBackup(true)).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
-                case 7:new AlertDialog.Builder(this).setTitle("¿Reiniciar juego?").setPositiveButton("Reiniciar",(x,w)->task(()->{DsCore.close(handle);handle=0;open();resetInput();menu=false;})).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
+                case 6:dialog().setTitle("¿Restaurar un respaldo?").setMessage("Reemplazará las partidas incluidas en el respaldo y reiniciará el juego.").setPositiveButton("Elegir respaldo",(x,w)->chooseBackup(true)).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
+                case 7:dialog().setTitle("¿Reiniciar juego?").setPositiveButton("Reiniciar",(x,w)->task(()->{DsCore.close(handle);handle=0;open();resetInput();menu=false;})).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
                 case 8:finish();break;
                 default:break;
             }

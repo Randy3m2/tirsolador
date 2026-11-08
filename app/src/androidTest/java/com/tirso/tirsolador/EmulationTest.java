@@ -83,7 +83,9 @@ public class EmulationTest {
                 if(root!=null&&!root.findAccessibilityNodeInfosByText("Guardar estado").isEmpty()){found=true;break;}
                 Thread.sleep(100);
             }
-            try(android.os.ParcelFileDescriptor fd=ui.executeShellCommand("mkdir -p /sdcard/Download/tirsolador-screenshots && screencap -p /sdcard/Download/tirsolador-screenshots/06-ds-pause.png");InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(in.read()!=-1){}}
+            for(String cmd:new String[]{"mkdir -p /sdcard/Download/tirsolador-screenshots","screencap -p /sdcard/Download/tirsolador-screenshots/06-ds-pause.png"}){
+                try(android.os.ParcelFileDescriptor fd=ui.executeShellCommand(cmd);InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(in.read()!=-1){}}
+            }
             assertTrue("Atrás debe abrir el menú del juego",found);
         }finally{InstrumentationRegistry.getInstrumentation().runOnMainSync(activity::finish);}
     }
