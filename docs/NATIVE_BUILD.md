@@ -5,6 +5,7 @@ NDK 27.2.12479018, CMake 3.22.1. Android mínimo 8.0 (API 26).
 
 ```sh
 bash tools/prepare_core.sh
+bash tools/prepare_preview_key.sh
 python tools/make_test_rom.py app/src/androidTest/assets/diagnostic.nds
 gradle :app:assembleDebug :app:lintDebug
 # En emulador x86_64:
@@ -26,6 +27,11 @@ build/native/core_test build/diagnostic.nds
 
 La ROM de diagnóstico se genera de código ARM propio, sin logo o código Nintendo;
 se incluye solo en el APK de pruebas, no en el APK de usuario.
+
+La preview usa el paquete `com.tirso.tirsolador.preview` para preservar la antigua
+instalación 0.3, cuya clave de firma no se conservó. El certificado debug de CI
+se crea/restaura en `~/.android/debug.keystore`; Gradle usa esa misma ruta.
+La caché de preview no sustituye la custodia duradera de una clave de producción.
 
 `engine.cpp` implementa la interfaz Platform de upstream, sin Qt/SDL, usando
 archivos privados, hilos de C++ y audio/vídeo del frontend Android. JNI se llama

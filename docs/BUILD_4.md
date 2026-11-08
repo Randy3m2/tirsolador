@@ -46,5 +46,12 @@ La release incluye el código fuente correspondiente de Tirsolador y melonDS,
 con instrucciones de compilación y licencias. Código de integración GPL-3.0 o
 posterior; los recursos conservan sus licencias específicas.
 
-Instala el APK universal sobre 0.3.0. Se conserva la clave de firma de previews,
-la sesión Telegram y los ajustes. No desinstales para actualizar.
+Esta entrega se instala como **Tirsolador Preview**, con identificador
+`com.tirso.tirsolador.preview`, junto a la versión 0.3. La clave usada para firmar
+0.3 no se conservó: Android no admite actualizarla con una firma diferente.
+No desinstales la versión anterior; su sesión, catálogo, descargas y ajustes
+permanecen intactos. Configura TirsoDrive y aprueba un nuevo QR en la preview.
+
+La ruta de firma está ahora fijada explícitamente y la CI conserva la clave de
+preview en su caché. Una caché puede caducar o eliminarse: para distribución
+permanente hace falta una clave de producción guardada en Secrets, no en Git.

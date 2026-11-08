@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Keep diagnostics even when the instrumentation task fails.
 set +e
+bash tools/prepare_preview_key.sh || exit 1
 gradle --no-daemon -PtirsoAbis=x86_64 :app:connectedDebugAndroidTest :app:lintDebug
 TEST_RESULT=$?
 mkdir -p screenshots

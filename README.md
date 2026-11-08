@@ -15,6 +15,8 @@ Consulta [funciones y límites de 0.4](docs/BUILD_4.md) y
 [compilación nativa y fuentes](docs/NATIVE_BUILD.md). Nintendo 64 y las demás
 consolas siguen pendientes. La sesión real requiere aprobar el login desde Telegram.
 Los apartados siguientes describen el objetivo completo del proyecto.
+Esta entrega se instala como **Tirsolador Preview** junto a la versión 0.3 para
+conservar sus datos; necesita una nueva configuración de TirsoDrive y login QR.
 
 ## Objetivo
 

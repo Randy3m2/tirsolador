@@ -31,7 +31,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: tirsolador-preview-key-v1
+          key: tirsolador-preview-key-v2
+      - name: Prepare preview signing key at the configured path
+        run: bash tools/prepare_preview_key.sh
       - name: Build and lint
         env:
           TIRSO_TELEGRAM_API_HASH: ${{ secrets.TIRSO_TELEGRAM_API_HASH }}
