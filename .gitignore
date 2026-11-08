@@ -9,3 +9,8 @@ local.properties
 .idea/
 app/src/main/cpp/upstream/
 app/src/androidTest/assets/diagnostic.nds
+vendor/
+native-build/
+native-dist/
+app/src/main/jniLibs/
+app/.cxx/

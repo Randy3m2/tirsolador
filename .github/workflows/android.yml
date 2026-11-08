@@ -8,6 +8,7 @@ permissions:
   contents: write
 jobs:
   build:
+    if: ${{ !contains(github.event.head_commit.message, '[native-only]') }}
     needs: smoke-test
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -72,6 +73,7 @@ jobs:
           TAG="preview-${GITHUB_RUN_NUMBER}"
           gh release create "$TAG" dist/* --prerelease --title "Tirsolador 0.4.0 · Nintendo DS integrado" --notes-file docs/BUILD_4.md
   smoke-test:
+    if: ${{ !contains(github.event.head_commit.message, '[native-only]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
