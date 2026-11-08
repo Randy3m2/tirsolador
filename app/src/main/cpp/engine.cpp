@@ -30,8 +30,13 @@ static bool atomicWrite(const std::string& path,const u8* p,size_t n) {
  if(!ok)unlink(temp.c_str()); return ok;
 }
 Engine::Engine(const std::string& rom,const std::string& save):savePath(save) {
- auto bytes=readBytes(rom,512u*1024*1024); if(bytes.size()<512)throw std::runtime_error("ROM DS inválida o demasiado grande");
- auto cart=NDSCart::ParseROM(bytes.data(),bytes.size(),this); if(!cart)throw std::runtime_error("melonDS no pudo abrir la ROM");
+ std::ifstream file(rom,std::ios::binary|std::ios::ate);
+ if(!file)throw std::runtime_error("No se pudo abrir la ROM");
+ auto size=file.tellg();if(size<4096||size>512LL*1024*1024)throw std::runtime_error("ROM DS inválida o demasiado grande");
+ auto bytes=std::make_unique<u8[]>(static_cast<size_t>(size));file.seekg(0);
+ if(!file.read(reinterpret_cast<char*>(bytes.get()),size))throw std::runtime_error("ROM incompleta");
+ if(bytes[0x12]==3)throw std::runtime_error("Esta versión admite Nintendo DS; los juegos exclusivos de DSi aún no están habilitados");
+ auto cart=NDSCart::ParseROM(std::move(bytes),static_cast<u32>(size),this); if(!cart)throw std::runtime_error("melonDS no pudo abrir la ROM");
  NDSArgs args; args.JIT=std::nullopt; args.OutputSampleRate=48000;
  nds=std::make_unique<NDS>(std::move(args),this); nds->SetNDSCart(std::move(cart));
  nds->Reset(); auto battery=readBytes(save,32*1024*1024);

@@ -163,6 +163,7 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
         Screen(){super(GameActivity.this);setFocusable(true);setContentDescription("Pantallas de Nintendo DS");}
         @Override protected void onDraw(Canvas c){
             c.drawColor(Color.BLACK);float scale=Math.min((getWidth()-24)/512f,(getHeight()-32)/192f);float w=256*scale,h=192*scale;
+            if(!ready){paint.setColor(Color.WHITE);paint.setTextSize(22);c.drawText("Preparando Nintendo DS…",24,48,paint);return;}
             float x=(getWidth()-w*2-12)/2,y=(getHeight()-h)/2;top.set(x,y,x+w,y+h);bottom.set(x+w+12,y,x+w*2+12,y+h);
             synchronized(image){c.drawBitmap(image,new Rect(0,0,256,192),top,paint);c.drawBitmap(image,new Rect(0,192,256,384),bottom,paint);}
             paint.setColor(0xFF77D8FF);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2);

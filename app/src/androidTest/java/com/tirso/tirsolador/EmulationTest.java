@@ -44,6 +44,19 @@ public class EmulationTest {
         GameStorage store=new GameStorage(context(),rom());byte[] wrapped=store.wrapState(new byte[32]);wrapped[wrapped.length-1]=1;
         try{store.unwrapState(wrapped);fail("Damaged state accepted");}catch(IOException expected){assertTrue(expected.getMessage().contains("dañado"));}
     }
+    @Test public void backupChecksumRejectsModifiedSaveWithoutReplacingLocalData()throws Exception{
+        GameStorage store=new GameStorage(context(),rom());byte[] original={7,8,9};GameStorage.write(store.battery(),original);
+        ByteArrayOutputStream good=new ByteArrayOutputStream();store.backup(good);ByteArrayOutputStream damaged=new ByteArrayOutputStream();
+        try(ZipInputStream in=new ZipInputStream(new ByteArrayInputStream(good.toByteArray()));ZipOutputStream out=new ZipOutputStream(damaged)){
+            ZipEntry entry;while((entry=in.getNextEntry())!=null){byte[] b=GameStorage.read(in,GameStorage.MAX_STATE+1024);if(entry.getName().equals("battery.sav"))b[0]^=1;out.putNextEntry(new ZipEntry(entry.getName()));out.write(b);out.closeEntry();}
+        }
+        try{store.restore(new ByteArrayInputStream(damaged.toByteArray()));fail("Checksum mismatch accepted");}catch(IOException expected){assertArrayEquals(original,GameStorage.read(store.battery(),100));}
+    }
+    @Test public void dsiOnlyRomIsRejectedBeforeBoot()throws Exception{
+        File file=new File(context().getCacheDir(),"dsi-only.nds");byte[] bytes=GameStorage.read(rom(),1024*1024);bytes[0x12]=3;GameStorage.write(file,bytes);
+        try{long h=DsCore.open(file.getPath(),new File(context().getCacheDir(),"dsi.sav").getPath());DsCore.close(h);fail("DSi-only ROM accepted");}
+        catch(IOException expected){assertTrue(expected.getMessage().contains("DSi"));}
+    }
     @Test public void joystickDpadAndDeviceReleaseAreIndependent(){
         GameInput input=new GameInput();input.key(1,KeyEvent.KEYCODE_DPAD_RIGHT,true);
         input.motion(1,0,0,-1,0,.2f);assertEquals(16|32,input.mask());

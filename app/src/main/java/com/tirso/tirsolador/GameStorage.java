@@ -59,6 +59,11 @@ final class GameStorage {
         AtomicFile a=new AtomicFile(target);FileOutputStream out=null;
         try{out=a.startWrite();out.write(b);a.finishWrite(out);}catch(IOException e){if(out!=null)a.failWrite(out);throw e;}
     }
+    static void copyAtomic(File source,File target)throws IOException{
+        AtomicFile a=new AtomicFile(target);FileOutputStream out=null;
+        try(InputStream in=new FileInputStream(source)){out=a.startWrite();copy(in,out,MAX_STATE+1024);a.finishWrite(out);}
+        catch(IOException e){if(out!=null)a.failWrite(out);throw e;}
+    }
     byte[] wrapState(byte[] state)throws Exception{
         ByteArrayOutputStream bytes=new ByteArrayOutputStream();DataOutputStream out=new DataOutputStream(bytes);
         out.writeUTF("TIRSO-DS-STATE-1");out.writeUTF(digest);out.writeUTF(DsCore.REVISION);out.writeUTF(hash(state));out.writeInt(state.length);out.write(state);return bytes.toByteArray();
@@ -69,18 +74,31 @@ final class GameStorage {
         String checksum=in.readUTF();int n=in.readInt();if(n<16||n>MAX_STATE||n!=in.available())throw new IOException("Estado incompleto");
         byte[] result=new byte[n];in.readFully(result);if(!hash(result).equals(checksum))throw new IOException("Estado dañado");return result;
     }
-    void saveState(byte[] bytes)throws Exception{write(stateFile(),wrapState(bytes));}
-    byte[] loadState()throws Exception{return unwrapState(read(stateFile(),MAX_STATE+1024));}
+    void saveState(byte[] bytes)throws Exception{
+        AtomicFile a=new AtomicFile(stateFile());FileOutputStream file=null;
+        try{file=a.startWrite();DataOutputStream out=new DataOutputStream(file);
+            out.writeUTF("TIRSO-DS-STATE-1");out.writeUTF(digest);out.writeUTF(DsCore.REVISION);out.writeUTF(hash(bytes));out.writeInt(bytes.length);out.write(bytes);out.flush();a.finishWrite(file);
+        }catch(Exception e){if(file!=null)a.failWrite(file);throw e;}
+    }
+    byte[] loadState()throws Exception{
+        try(DataInputStream in=new DataInputStream(new FileInputStream(stateFile()))){
+            if(!in.readUTF().equals("TIRSO-DS-STATE-1")||!in.readUTF().equals(digest)||!in.readUTF().equals(DsCore.REVISION))throw new IOException("El estado pertenece a otro juego o versión del núcleo");
+            String checksum=in.readUTF();int n=in.readInt();if(n<16||n>MAX_STATE||n!=in.available())throw new IOException("Estado incompleto");
+            byte[] bytes=new byte[n];in.readFully(bytes);if(!hash(bytes).equals(checksum))throw new IOException("Estado dañado");return bytes;
+        }
+    }
     void backup(OutputStream stream)throws Exception{
-        Map<String,byte[]> files=new LinkedHashMap<>();
-        if(battery().exists())files.put("battery.sav",read(battery(),MAX_SAVE));
-        if(stateFile().exists())files.put("slot1.tss",read(stateFile(),MAX_STATE+1024));
+        Map<String,File> files=new LinkedHashMap<>();
+        if(battery().exists())files.put("battery.sav",battery());
+        if(stateFile().exists())files.put("slot1.tss",stateFile());
         if(files.isEmpty())throw new IOException("Aún no hay partidas ni estados para respaldar");
-        JSONObject hashes=new JSONObject();for(Map.Entry<String,byte[]>e:files.entrySet())hashes.put(e.getKey(),hash(e.getValue()));
+        JSONObject hashes=new JSONObject();for(Map.Entry<String,File>e:files.entrySet())hashes.put(e.getKey(),hash(e.getValue()));
         JSONObject manifest=new JSONObject().put("schema",1).put("rom",digest).put("core",DsCore.REVISION).put("files",hashes);
         try(ZipOutputStream out=new ZipOutputStream(stream)){
             out.putNextEntry(new ZipEntry("manifest.json"));out.write(manifest.toString().getBytes(StandardCharsets.UTF_8));out.closeEntry();
-            for(Map.Entry<String,byte[]>e:files.entrySet()){out.putNextEntry(new ZipEntry(e.getKey()));out.write(e.getValue());out.closeEntry();}
+            for(Map.Entry<String,File>e:files.entrySet()){
+                out.putNextEntry(new ZipEntry(e.getKey()));try(InputStream in=new FileInputStream(e.getValue())){copy(in,out,MAX_STATE+1024);}out.closeEntry();
+            }
         }
     }
     void restore(InputStream stream)throws Exception{
@@ -100,8 +118,17 @@ final class GameStorage {
             if(!hash(e.getValue()).equals(hashes.getString(e.getKey())))throw new IOException("Respaldo dañado");
             if(e.getKey().equals("slot1.tss"))unwrapState(e.getValue());
         }
-        Map<String,byte[]> old=new LinkedHashMap<>();for(String name:files.keySet()){File f=new File(dir,name);old.put(name,f.exists()?read(f,MAX_STATE+1024):null);}
-        try{for(Map.Entry<String,byte[]>e:files.entrySet())write(new File(dir,e.getKey()),e.getValue());}
-        catch(Exception x){for(Map.Entry<String,byte[]>e:old.entrySet()){File f=new File(dir,e.getKey());if(e.getValue()==null)f.delete();else write(f,e.getValue());}throw x;}
+        Map<String,File> old=new LinkedHashMap<>();boolean preserve=false;
+        try{
+            for(String name:files.keySet()){
+                File f=new File(dir,name),saved=null;
+                if(f.exists()){saved=File.createTempFile("restore-old-"+name+"-",".bak",dir);old.put(name,saved);copyAtomic(f,saved);}else old.put(name,null);
+            }
+            try{for(Map.Entry<String,byte[]>e:files.entrySet())write(new File(dir,e.getKey()),e.getValue());}
+            catch(Exception x){
+                for(Map.Entry<String,File>e:old.entrySet())try{File f=new File(dir,e.getKey());if(e.getValue()==null){if(f.exists()&&!f.delete())throw new IOException("No se pudo revertir la restauración");}else copyAtomic(e.getValue(),f);}
+                catch(IOException rollback){preserve=true;x.addSuppressed(rollback);}throw x;
+            }
+        }finally{if(!preserve)for(File f:old.values())if(f!=null)f.delete();}
     }
 }
