@@ -6,7 +6,8 @@
     <application android:label="Tirsolador" android:theme="@style/AppTheme"
         android:icon="@drawable/app_icon" android:banner="@drawable/tv_banner"
         android:allowBackup="false" android:supportsRtl="true" android:usesCleartextTraffic="false">
-        <activity android:name=".GameActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".GameActivity" android:exported="false" android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density" />
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

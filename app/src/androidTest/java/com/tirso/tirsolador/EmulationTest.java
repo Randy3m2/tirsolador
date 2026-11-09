@@ -81,8 +81,16 @@ public class EmulationTest {
         Intent intent=new Intent(context(),GameActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("rom",rom().getPath()).putExtra("title","Tirsolador · Diagnóstico DS");
         Activity activity=InstrumentationRegistry.getInstrumentation().startActivitySync(intent);
         try{
-            Thread.sleep(1800);InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+            Thread.sleep(1800);
             android.app.UiAutomation ui=InstrumentationRegistry.getInstrumentation().getUiAutomation();
+            try{
+                for(String mode:new String[]{"yes","no"}){
+                    try(android.os.ParcelFileDescriptor fd=ui.executeShellCommand("cmd uimode night "+mode);InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(in.read()!=-1){}}
+                    InstrumentationRegistry.getInstrumentation().waitForIdleSync();Thread.sleep(300);
+                    assertFalse("Configuration changes must not destroy the emulation session",activity.isDestroyed());
+                }
+            }finally{try(android.os.ParcelFileDescriptor fd=ui.executeShellCommand("cmd uimode night auto");InputStream in=new android.os.ParcelFileDescriptor.AutoCloseInputStream(fd)){while(in.read()!=-1){}}}
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK);InstrumentationRegistry.getInstrumentation().waitForIdleSync();
             boolean found=false;long deadline=android.os.SystemClock.uptimeMillis()+5000;
             while(android.os.SystemClock.uptimeMillis()<deadline){
                 android.view.accessibility.AccessibilityNodeInfo root=ui.getRootInActiveWindow();
