@@ -46,6 +46,7 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
         try{console=Console.valueOf(getIntent().getStringExtra("console"));}catch(Exception ignored){}isDs=console==Console.NDS;
         profiles=new ControllerProfiles(this);screen=new Screen();setContentView(screen);
         manager=(InputManager)getSystemService(INPUT_SERVICE);manager.registerInputDeviceListener(this,null);
+        for(int id:InputDevice.getDeviceIds())registerGamepad(id);
         worker.execute(()->{
             try{
                 String path=getIntent().getStringExtra("rom");if(path==null)throw new IOException("No se recibió la ROM");
@@ -106,7 +107,7 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
     private void silence(){if(audio!=null&&audio.getPlayState()==AudioTrack.PLAYSTATE_PLAYING){audio.pause();audio.flush();}}
     private void resetInput(){input.clear();pointerTouch=false;}
     @Override protected void onResume(){super.onResume();foreground=true;if(ready)pauseMenu();}
-    @Override protected void onPause(){foreground=false;if(ready)menu=true;resetInput();super.onPause();}
+    @Override protected void onPause(){foreground=false;if(ready){menu=true;worker.execute(()->{try{if(handle!=0)flush();}catch(Exception e){error(e,false);}});}resetInput();super.onPause();}
     @Override protected void onDestroy(){
         closed=true;resetInput();manager.unregisterInputDeviceListener(this);
         for(AlertDialog d:new java.util.ArrayList<>(dialogs))d.dismiss();
@@ -143,7 +144,7 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
                 case 1:dialog().setTitle(title).setMessage((description==null?"":description)+"\n\n"+(storage==null?console.title:storage.coreName)+" integrado · Resolución nativa · Audio estéreo\n"+(isDs?"Stick derecho: cursor · R3: tocar\n":"")+"Cruceta y joysticks independientes\nPartidas locales · ROM temporal eliminada al salir")
                     .setPositiveButton("Menú",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
                 case 2:showFps=!showFps;screen.invalidate();pauseMenu();break;
-                case 3:task(()->{storage.saveState(snapshot());toast("Estado guardado");runOnUiThread(this::pauseMenu);});break;
+                case 3:task(()->{flush();storage.saveState(snapshot());toast("Estado guardado");runOnUiThread(this::pauseMenu);});break;
                 case 4:dialog().setTitle("¿Cargar el estado guardado?").setMessage("Se reemplazará el progreso actual en memoria.").setPositiveButton("Cargar",(x,w)->task(()->{
                     if(!restore(storage.loadState()))throw new IOException("No se pudo cargar el estado");resetInput();toast("Estado cargado");runOnUiThread(this::pauseMenu);
                 })).setNegativeButton("Cancelar",(x,w)->pauseMenu()).setOnCancelListener(x->pauseMenu()).show();break;
@@ -181,7 +182,8 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
         if(menu)return super.dispatchKeyEvent(e);
         boolean down=e.getAction()==KeyEvent.ACTION_DOWN;
         if(e.getKeyCode()==KeyEvent.KEYCODE_BACK||e.getKeyCode()==KeyEvent.KEYCODE_BUTTON_MODE||e.getKeyCode()==KeyEvent.KEYCODE_MENU){if(down&&e.getRepeatCount()==0)pauseMenu();return true;}
-        if(e.getDevice()!=null)input.player(e.getDeviceId(),profiles.player(e.getDevice()));
+        if(!gamepad(e.getDevice()))return super.dispatchKeyEvent(e);
+        input.player(e.getDeviceId(),profiles.player(e.getDevice()));
         if(input.key(e.getDeviceId(),e.getKeyCode(),down))return true;
         return super.dispatchKeyEvent(e);
     }
@@ -199,8 +201,10 @@ public class GameActivity extends Activity implements InputManager.InputDeviceLi
         }
         return super.onGenericMotionEvent(e);
     }
-    public void onInputDeviceAdded(int id){}
-    public void onInputDeviceChanged(int id){input.remove(id);profiles.disconnect(id);}
+    private static boolean gamepad(InputDevice d){return d!=null&&((d.getSources()&InputDevice.SOURCE_GAMEPAD)==InputDevice.SOURCE_GAMEPAD||(d.getSources()&InputDevice.SOURCE_JOYSTICK)==InputDevice.SOURCE_JOYSTICK);}
+    private void registerGamepad(int id){InputDevice d=InputDevice.getDevice(id);if(gamepad(d))input.player(id,profiles.player(d));}
+    public void onInputDeviceAdded(int id){registerGamepad(id);}
+    public void onInputDeviceChanged(int id){input.remove(id);profiles.disconnect(id);registerGamepad(id);}
     public void onInputDeviceRemoved(int id){input.remove(id);profiles.disconnect(id);}
     final class Screen extends View {
         final Bitmap image=Bitmap.createBitmap(1024,1024,Bitmap.Config.ARGB_8888);

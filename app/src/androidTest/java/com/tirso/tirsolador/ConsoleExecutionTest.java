@@ -47,6 +47,53 @@ public class ConsoleExecutionTest {
     @Test public void n64BootHardwareVideoAudioState()throws Exception{execute(Console.N64,"diagnostic-cached.z64",120);}
     @Test public void n64DynarecAndHardwareFramebuffer()throws Exception{execute(Console.N64,"diagnostic.z64",120);}
     @Test public void mameBootVideoAudioState()throws Exception{execute(Console.MAME,"gridlee.zip",240);}
+    @Test public void n64ReceivesFourIndependentControllerPorts()throws Exception{
+        File file=fixture("diagnostic.z64");GameStorage store=new GameStorage(context(),file,file.getName(),Console.N64);
+        File system=new File(context().getFilesDir(),"bios");system.mkdirs();
+        long h=RetroCore.open(CoreRegistry.library(context(),Console.N64).getPath(),store.rom.getPath(),store.dir.getPath(),system.getPath(),"n64");
+        try{
+            int[] keys={1,1<<1,1<<3,1<<11},pixels=new int[1024*1024];float[] axes=new float[16];axes[0]=1;short[] audio=new short[16384];
+            for(int i=0;i<30;i++)RetroCore.frame(h,keys,axes,pixels,audio);
+            int[] expected={0x8000,0x4000,0x1000,0x10};
+            for(int i=0;i<4;i++)assertEquals("N64 PIF controller "+(i+1),expected[i],(RetroCore.systemWordForTest(h,0x310000+i*4)>>>16)&65535);
+            assertTrue("Player 1 analog stick",(RetroCore.systemWordForTest(h,0x310000)&0xFF00)!=0);
+            assertEquals("Player 2 stick independent",0,RetroCore.systemWordForTest(h,0x310004)&65535);
+            keys[0]=0;axes[0]=0;for(int i=0;i<8;i++)RetroCore.frame(h,keys,axes,pixels,audio);
+            assertEquals(0,RetroCore.systemWordForTest(h,0x310000));assertEquals(0x4000,RetroCore.systemWordForTest(h,0x310004)>>>16);
+        }finally{RetroCore.close(h);store.cleanup();}
+    }
+    private void reopenSave(Console console,String name)throws Exception{
+        File file=fixture(name);GameStorage store=new GameStorage(context(),file,name,console);
+        File system=new File(context().getFilesDir(),"bios");system.mkdirs();
+        long h=0;
+        try{
+            h=RetroCore.open(CoreRegistry.library(context(),console).getPath(),store.rom.getPath(),store.dir.getPath(),system.getPath(),CoreRegistry.key(console));
+            int[] pixels=new int[1024*1024],keys=new int[4];float[] axes=new float[16];short[] audio=new short[16384];
+            for(int i=0;i<6;i++)RetroCore.frame(h,keys,axes,pixels,audio);
+            byte[] ram=RetroCore.saveMemoryForTest(h,91);assertEquals(91,ram[0]&255);assertTrue(RetroCore.flush(h));
+            store.saveState(RetroCore.snapshot(h));
+            RetroCore.close(h);h=0;
+            h=RetroCore.open(CoreRegistry.library(context(),console).getPath(),store.rom.getPath(),store.dir.getPath(),system.getPath(),CoreRegistry.key(console));
+            assertEquals("Battery must load on a new native session",91,RetroCore.saveMemoryForTest(h,-1)[0]&255);
+            assertTrue("Manual state must restore immediately after cold open",RetroCore.restore(h,store.loadState()));
+            RetroCore.frame(h,keys,axes,pixels,audio);assertEquals("Restored game must retain saved SRAM",91,RetroCore.saveMemoryForTest(h,-1)[0]&255);
+        }finally{if(h!=0)RetroCore.close(h);store.cleanup();}
+    }
+    @Test public void n64SramAndStateSurviveClosingAndReopening()throws Exception{reopenSave(Console.N64,"diagnostic.z64");}
+    @Test public void gbaSramAndStateSurviveClosingAndReopening()throws Exception{reopenSave(Console.GBA,"diagnostic.gba");}
+    @Test public void gbaAutodetectedSmallerSaveIsNotDiscarded()throws Exception{
+        File file=fixture("diagnostic.gba");GameStorage store=new GameStorage(context(),file,file.getName(),Console.GBA);
+        byte[] old=new byte[32768];old[0]=73;GameStorage.write(store.battery(),old);
+        File system=new File(context().getFilesDir(),"bios");system.mkdirs();
+        long h=RetroCore.open(CoreRegistry.library(context(),Console.GBA).getPath(),store.rom.getPath(),store.dir.getPath(),system.getPath(),"gba");
+        try{assertEquals(73,RetroCore.saveMemoryForTest(h,-1)[0]&255);}finally{RetroCore.close(h);store.cleanup();}
+    }
+    @Test public void playerAssignmentsSurvivePauseAndResume(){
+        GameInput p=new GameInput();p.player(10,-1);p.player(20,-1);p.key(20,android.view.KeyEvent.KEYCODE_BUTTON_A,true);
+        assertEquals(0,p.retroMasks(true)[0]);assertEquals(1,p.retroMasks(true)[1]);p.clear();
+        p.key(20,android.view.KeyEvent.KEYCODE_BUTTON_A,true);assertEquals(0,p.retroMasks(true)[0]);assertEquals(1,p.retroMasks(true)[1]);
+        p.key(10,android.view.KeyEvent.KEYCODE_BUTTON_B,true);assertEquals(1<<8,p.retroMasks(true)[0]);
+    }
     @Test public void gbaAndOtherGroupsCannotCross(){
         assertEquals(Console.GBA,TelegramCatalog.consoleFor("DD-ROMS-GBA"));
         assertEquals(Console.GBA,TelegramCatalog.consoleFor("TD - ROMs - Game Boy Advance"));

@@ -48,7 +48,7 @@ struct Host {
  unsigned rotation=0;
  unsigned width=0,height=0,frames=0;
  double audioPhase=0;
- bool initialized=false,loaded=false,shutdown=false,hardware=false,contextReady=false;
+ bool initialized=false,loaded=false,shutdown=false,hardware=false,contextReady=false,saveReady=false;
  void (*init)();void(*deinit)();void(*run)();void(*unload)();
  bool(*loadGame)(const retro_game_info*);size_t(*serializeSize)();bool(*serialize)(void*,size_t);bool(*unserialize)(const void*,size_t);
  void*(*memoryData)(unsigned);size_t(*memorySize)(unsigned);
@@ -69,7 +69,7 @@ struct Host {
   if(level>=RETRO_LOG_WARN)active->logMessage=text;__android_log_print(level>=RETRO_LOG_WARN?ANDROID_LOG_WARN:ANDROID_LOG_INFO,"TirsoCore","%s",text);
  }
  static uintptr_t framebuffer(){return active?active->fbo:0;}
- static retro_proc_address_t proc(const char* name){return reinterpret_cast<retro_proc_address_t>(eglGetProcAddress(name));}
+ static retro_proc_address_t proc(const char* name){auto p=eglGetProcAddress(name);return p?reinterpret_cast<retro_proc_address_t>(p):reinterpret_cast<retro_proc_address_t>(dlsym(RTLD_DEFAULT,name));}
  Host(const std::string& libraryPath,const std::string& path,const std::string& saveDir,const std::string& systemDir,const std::string& id):lease(sessionMutex),rom(path),save(saveDir),system(systemDir),core(id){
   active=this;pixels.resize(MAX_WIDTH*MAX_HEIGHT);
   variables={{"mupen64plus-43screensize","320x240"},{"mupen64plus-169screensize","640x360"},{"mupen64plus-rdp-plugin","gliden64"},{"mupen64plus-rsp-plugin","hle"},{"mupen64plus-txFilterMode","None"},{"mupen64plus-txEnhancementMode","None"},{"mupen64plus-ThreadedRenderer","False"},{"mupen64plus-EnableFBEmulation","True"},{"mupen64plus-FrameDuping","False"},{"mame2003-plus_skip_disclaimer","enabled"},{"mame2003-plus_skip_warnings","enabled"}};
@@ -101,13 +101,16 @@ struct Host {
    auto setDevice=symbol<void(*)(unsigned,unsigned)>("retro_set_controller_port_device");
    unsigned ports=(core=="n64"||core=="mame")?4:(core=="gb"||core=="gba")?1:2;
    for(unsigned port=0;port<ports;++port)setDevice(port,RETRO_DEVICE_JOYPAD);
+   // Hardware cores finish startup in their first coroutine frame. Cold state
+   // restoration and controller binding must happen after that initialization.
+   if(core=="n64"){run();for(unsigned port=0;port<ports;++port)setDevice(port,RETRO_DEVICE_JOYPAD);audio.clear();}
    restoreBattery();
   }catch(...){cleanup();throw;}
  }
  void initGL(){
   if(display!=EGL_NO_DISPLAY)return;
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(display==EGL_NO_DISPLAY||!eglInitialize(display,nullptr,nullptr))throw std::runtime_error("No se pudo iniciar OpenGL ES en esta TV");
-  EGLint configAttrs[]={EGL_SURFACE_TYPE,EGL_PBUFFER_BIT,EGL_RENDERABLE_TYPE,EGL_OPENGL_ES2_BIT,EGL_RED_SIZE,8,EGL_GREEN_SIZE,8,EGL_BLUE_SIZE,8,EGL_ALPHA_SIZE,8,EGL_NONE};
+  EGLint configAttrs[]={EGL_SURFACE_TYPE,EGL_PBUFFER_BIT,EGL_RENDERABLE_TYPE,hw.context_type==RETRO_HW_CONTEXT_OPENGLES3?0x0040:EGL_OPENGL_ES2_BIT,EGL_RED_SIZE,8,EGL_GREEN_SIZE,8,EGL_BLUE_SIZE,8,EGL_ALPHA_SIZE,8,EGL_NONE};
   EGLConfig config;EGLint count=0;if(!eglChooseConfig(display,configAttrs,&config,1,&count)||count<1)throw std::runtime_error("La TV no ofrece un contexto OpenGL ES compatible");
   EGLint size[]={EGL_WIDTH,static_cast<EGLint>(MAX_WIDTH),EGL_HEIGHT,static_cast<EGLint>(MAX_HEIGHT),EGL_NONE};surface=eglCreatePbufferSurface(display,config,size);
   EGLint ctx[]={EGL_CONTEXT_CLIENT_VERSION,hw.context_type==RETRO_HW_CONTEXT_OPENGLES3?3:2,EGL_NONE};context=eglCreateContext(display,config,EGL_NO_CONTEXT,ctx);
@@ -121,12 +124,19 @@ struct Host {
  }
  void restoreBattery(){
   auto size=memorySize(RETRO_MEMORY_SAVE_RAM);void* data=memoryData(RETRO_MEMORY_SAVE_RAM);
-  if(!data||!size||size>32*1024*1024)return;std::ifstream in(save+"/battery.sav",std::ios::binary|std::ios::ate);
-  if(in&&static_cast<size_t>(in.tellg())==size){in.seekg(0);in.read(static_cast<char*>(data),size);}
-  previousSave.assign(static_cast<unsigned char*>(data),static_cast<unsigned char*>(data)+size);
+  if(!data||!size){saveReady=true;return;}if(size>32*1024*1024)throw std::runtime_error("Partida demasiado grande");
+  std::ifstream in(save+"/battery.sav",std::ios::binary|std::ios::ate);
+  if(in){auto stored=in.tellg();if(stored<1||stored>32*1024*1024)throw std::runtime_error("Partida guardada inválida; se conservó el archivo original");
+   // SRAM can change size after autodetection (notably mGBA). Restore the
+   // available prefix instead of silently discarding smaller valid saves.
+   size_t count=std::min(size,static_cast<size_t>(stored));in.seekg(0);
+   if(!in.read(static_cast<char*>(data),count))throw std::runtime_error("No se pudo leer la partida guardada");
+   previousSave.assign(static_cast<unsigned char*>(data),static_cast<unsigned char*>(data)+size);
+  }
+  saveReady=true;
  }
  bool flush(){
-  if(!loaded)return true;auto size=memorySize(RETRO_MEMORY_SAVE_RAM);void* data=memoryData(RETRO_MEMORY_SAVE_RAM);
+  if(!loaded||!saveReady)return true;auto size=memorySize(RETRO_MEMORY_SAVE_RAM);void* data=memoryData(RETRO_MEMORY_SAVE_RAM);
   if(!data||!size)return true;if(size>32*1024*1024)return false;
   if(previousSave.size()==size&&memcmp(previousSave.data(),data,size)==0)return true;
   std::string target=save+"/battery.sav",temp=target+".tmp";FILE* f=fopen(temp.c_str(),"wb");if(!f)return false;
@@ -224,3 +234,16 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_tirso_tirsolador_RetroCore_restor
 extern "C" JNIEXPORT jboolean JNICALL Java_com_tirso_tirsolador_RetroCore_flush(JNIEnv*,jclass,jlong handle){return reinterpret_cast<Host*>(handle)->flush();}
 extern "C" JNIEXPORT void JNICALL Java_com_tirso_tirsolador_RetroCore_close(JNIEnv*,jclass,jlong handle){delete reinterpret_cast<Host*>(handle);}
 extern "C" JNIEXPORT void JNICALL Java_com_tirso_tirsolador_RetroCore_diagnostics(JNIEnv*,jclass,jboolean enabled){diagnosticLogging=enabled;}
+
+#ifdef TIRSO_DIAGNOSTICS
+extern "C" JNIEXPORT jint JNICALL Java_com_tirso_tirsolador_RetroCore_systemWordForTest(JNIEnv* e,jclass,jlong handle,jint offset){
+ auto* h=reinterpret_cast<Host*>(handle);auto size=h->memorySize(RETRO_MEMORY_SYSTEM_RAM);auto* data=static_cast<unsigned char*>(h->memoryData(RETRO_MEMORY_SYSTEM_RAM));
+ if(!data||offset<0||(offset&3)||static_cast<size_t>(offset)+4>size){fail(e,"Invalid RAM probe");return 0;}uint32_t value;memcpy(&value,data+offset,4);return value;
+}
+extern "C" JNIEXPORT jbyteArray JNICALL Java_com_tirso_tirsolador_RetroCore_saveMemoryForTest(JNIEnv* e,jclass,jlong handle,jint value){
+ auto* h=reinterpret_cast<Host*>(handle);auto size=h->memorySize(RETRO_MEMORY_SAVE_RAM);auto* data=static_cast<unsigned char*>(h->memoryData(RETRO_MEMORY_SAVE_RAM));
+ if(!data||size<1||size>32*1024*1024){fail(e,"No save RAM");return nullptr;}
+ if(value>=0)data[0]=static_cast<unsigned char>(value);
+ auto out=e->NewByteArray(size);e->SetByteArrayRegion(out,0,size,reinterpret_cast<jbyte*>(data));return out;
+}
+#endif

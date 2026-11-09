@@ -98,7 +98,24 @@ main.label('write');main.op(0xA5090000);main.op(0x25080002);main.op(0x254AFFFF);
 main.li(8,0xA0200000);main.li(10,1024);main.li(9,0x18001800);main.label('pcm');main.op(0xAD090000);main.op(0x25080004);main.op(0x254AFFFF);main.branch(5,10,0,'pcm')
 main.li(8,0xA4500000)
 for offset,value in [(8,1),(16,1103),(20,15)]:main.li(9,value);main.op(0xAD090000|offset)
-main.label('audio');main.op(0x8D09000C);main.li(10,0x40000000);main.op(0x012A4824);main.branch(5,9,0,'audio');main.li(9,0x200000);main.op(0xAD090000);main.li(9,4096);main.op(0xAD090004);main.branch(4,0,0,'audio')
+main.label('audio');main.op(0x8D09000C);main.li(10,0x40000000);main.op(0x012A4824);main.branch(5,9,0,'audio');main.li(9,0x200000);main.op(0xAD090000);main.li(9,4096);main.op(0xAD090004)
+# Poll all four real N64 controller channels through SI/PIF DMA.
+commands=bytearray(64)
+for port in range(4):commands[port*7:port*7+3]=bytes([1,4,1])
+commands[28]=0xFE;commands[63]=1
+main.li(8,0xA0300000)
+for offset in range(0,64,4):main.li(9,int.from_bytes(commands[offset:offset+4],'big'));main.op(0xAD090000|offset)
+main.li(8,0xA4800000);main.li(9,0x300000);main.op(0xAD090000);main.li(9,0x1FC007C0);main.op(0xAD090010)
+main.label('si_write');main.op(0x8D090018);main.op(0x31290003);main.branch(5,9,0,'si_write')
+main.li(9,0x1FC007C0);main.op(0xAD090004)
+main.label('si_read');main.op(0x8D090018);main.op(0x31290003);main.branch(5,9,0,'si_read')
+main.li(8,0xA0300000);main.li(12,0xA0310000)
+for port in range(4):
+    main.li(11,0)
+    for byte in range(4):
+        main.op(0x91090000|(port*7+3+byte));main.op(0x000B5A00);main.op(0x01695825)
+    main.op(0xAD8B0000|(port*4))
+main.li(8,0xA4500000);main.branch(4,0,0,'audio')
 rom=bytearray(2*1024*1024);struct.pack_into('>4I',rom,0,0x80371240,0x0000000F,0x80000400,0);rom[0x20:0x34]=b'TIRSO FRAME TEST'.ljust(20,b' ');rom[0x3E]=ord('E')
 b=boot.finish();rom[0x40:0x40+len(b)]=b;b=main.finish();rom[0x1000:0x1000+len(b)]=b
 t=[0xF8CA4DDC]*6

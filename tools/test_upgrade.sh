@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
-adb install old/*.apk
-adb shell run-as com.tirso.tirsolador.preview sh -c '"mkdir -p files; echo preserved > files/upgrade-marker"'
-adb install -r dist/Tirsolador-v1.0.0.apk
 adb root
 adb wait-for-device
-result=$(adb shell cat /data/user/0/com.tirso.tirsolador.preview/files/upgrade-marker | tr -d '\r\n')
+adb install old/*.apk
+PKG=com.tirso.tirsolador.preview
+adb shell am start -W -n "$PKG/com.tirso.tirsolador.MainActivity"
+OLD_UID=$(adb shell stat -c %u /data/user/0/$PKG | tr -d '\r\n')
+adb shell "mkdir -p /data/user/0/$PKG/files; echo preserved > /data/user/0/$PKG/files/upgrade-marker; chown $OLD_UID:$OLD_UID /data/user/0/$PKG/files/upgrade-marker"
+adb install -r dist/Tirsolador-v1.0.1.apk
+NEW_UID=$(adb shell stat -c %u /data/user/0/$PKG | tr -d '\r\n')
+[ "$OLD_UID" = "$NEW_UID" ]
+result=$(adb shell cat /data/user/0/$PKG/files/upgrade-marker | tr -d '\r\n')
 [ "$result" = preserved ]
-adb shell am start -W -n com.tirso.tirsolador.preview/com.tirso.tirsolador.MainActivity
+adb shell am force-stop "$PKG"
+adb shell am start -W -n "$PKG/com.tirso.tirsolador.MainActivity"
 sleep 3
-adb shell pidof com.tirso.tirsolador.preview
-echo 'Existing installation updated successfully; private data preserved.'
+adb shell pidof "$PKG"
+echo 'Existing installation updated successfully; UID and private data preserved.'

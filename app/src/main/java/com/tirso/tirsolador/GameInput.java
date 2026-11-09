@@ -36,12 +36,12 @@ final class GameInput {
     static int directions(float x,float y,float flat){return (x>flat?16:0)|(x< -flat?32:0)|(y< -flat?64:0)|(y>flat?128:0);}
     synchronized void motion(int id,float hx,float hy,float sx,float sy,float deadzone){Pad p=pad(id);p.hat=directions(hx,hy,.5f);p.stick=directions(sx,sy,Math.max(.35f,deadzone));}
     synchronized void analog(int id,float x,float y,float rx,float ry,float deadzone){Pad p=pad(id);p.lx=Math.abs(x)>deadzone?x:0;p.ly=Math.abs(y)>deadzone?y:0;p.rx=Math.abs(rx)>deadzone?rx:0;p.ry=Math.abs(ry)>deadzone?ry:0;}
-    synchronized void player(int id,int port){if(port>=0&&port<4)pad(id).port=port;}
+    synchronized void player(int id,int port){Pad p=pad(id);if(port>=0&&port<4)p.port=port;}
     synchronized void triggers(int id,float left,float right){pad(id).triggers=(left>.5f?1<<12:0)|(right>.5f?1<<13:0);}
     synchronized float[] axes(){float[] values=new float[16];for(Pad p:pads.values()){int n=p.port*4;values[n]=p.lx;values[n+1]=p.ly;values[n+2]=p.rx;values[n+3]=p.ry;}return values;}
     synchronized int[] retroMasks(boolean analogConsole){int[] result=new int[4];for(Pad p:pads.values()){int d=p.hat|(analogConsole?0:p.stick);result[p.port]|=p.retroButtons|p.triggers|((d&16)!=0?1<<7:0)|((d&32)!=0?1<<6:0)|((d&64)!=0?1<<4:0)|((d&128)!=0?1<<5:0);}return result;}
     synchronized int mask(){int m=0;for(Pad p:pads.values())m|=p.buttons|p.hat|p.stick;return m;}
     synchronized boolean touching(){for(Pad p:pads.values())if(p.touch)return true;return false;}
     synchronized void remove(int id){pads.remove(id);}
-    synchronized void clear(){pads.clear();}
+    synchronized void clear(){for(Pad p:pads.values()){p.buttons=0;p.retroButtons=0;p.triggers=0;p.hat=0;p.stick=0;p.lx=0;p.ly=0;p.rx=0;p.ry=0;p.touch=false;}}
 }
