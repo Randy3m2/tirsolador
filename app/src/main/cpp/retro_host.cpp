@@ -103,8 +103,8 @@ struct Host {
    for(unsigned port=0;port<ports;++port)setDevice(port,RETRO_DEVICE_JOYPAD);
    // Hardware cores finish startup in their first coroutine frame. Cold state
    // restoration and controller binding must happen after that initialization.
-   if(core=="n64"){run();for(unsigned port=0;port<ports;++port)setDevice(port,RETRO_DEVICE_JOYPAD);audio.clear();}
    restoreBattery();
+   if(core=="n64"){run();for(unsigned port=0;port<ports;++port)setDevice(port,RETRO_DEVICE_JOYPAD);audio.clear();}
   }catch(...){cleanup();throw;}
  }
  void initGL(){
