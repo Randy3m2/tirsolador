@@ -2,9 +2,9 @@
 
 Aplicación nativa para Android TV: biblioteca de Telegram/TirsoDrive y emulación dentro del mismo APK. Android 8 o posterior; ARM de 32/64 bits y x86 de 32/64 bits.
 
-## Versión 1.0.0
+## Versión 1.0.1
 
-[Descargas y fuentes completas](https://github.com/Randy3m2/tirsolador/releases) · [Notas de la versión](docs/BUILD_1_0.md) · [Compilación](docs/NATIVE_BUILD.md)
+[Descargas y fuentes completas](https://github.com/Randy3m2/tirsolador/releases) · [Notas de la versión](docs/BUILD_1_0_1.md) · [Compilación](docs/NATIVE_BUILD.md)
 
 - Bienvenida QR y sesión cifrada de Telegram, catálogos por consola y sincronización al entrar.
 - Botón **Jugar**: prepara el archivo, inicia el núcleo y elimina la ROM temporal al salir; conserva partidas y estados.
@@ -30,7 +30,7 @@ También se reconocen alias normalizados `TD`/`DD`, `GB`, `GBC`, `GBA`, `NDS`, `
 
 ## Instalación y compatibilidad
 
-Instalar sobre 0.4.0 Preview conserva datos y sesión: se mantiene el identificador `com.tirso.tirsolador.preview` y su certificado. No desinstalar para actualizar.
+Instalar sobre 1.0.0 o 0.4.0 Preview conserva datos y sesión: se mantiene el identificador `com.tirso.tirsolador.preview` y su certificado. No desinstalar para actualizar.
 
 Los núcleos se compilan desde revisiones fijadas en [config/cores.json](config/cores.json); las fuentes correspondientes y licencias se incluyen en Releases. No se necesitan APK de emuladores externos. MAME utiliza ROM sets compatibles con **2003-Plus**; algunos juegos requieren archivos padre o BIOS, importables desde Ajustes. NES FDS requiere `disksys.rom`. DS usa el arranque integrado de melonDS para ROMs compatibles.
 

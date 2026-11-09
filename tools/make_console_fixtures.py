@@ -94,6 +94,13 @@ for offset,value in [(0,0x320E),(4,0x100000),(8,320),(12,2),(16,0),(20,0x03E5223
     main.li(9,value);main.op(0xAD090000|offset)
 main.li(8,0xA0100000);main.li(10,320*240);main.label('fill');main.op(0x314B0020);main.branch(4,11,0,'red');main.li(9,0x003F);main.branch(4,0,0,'write');main.label('red');main.li(9,0xF801)
 main.label('write');main.op(0xA5090000);main.op(0x25080002);main.op(0x254AFFFF);main.branch(5,10,0,'fill')
+# Exercise the real RDP renderer, not only a CPU-written VI framebuffer.
+# RGBA16 color image at 1MB, fill-cycle green rectangle in its left half.
+rdp=[(0xFF10013F,0x00100000),(0xED000000,0x005003C0),(0xEF300000,0),(0xF7000000,0x07C107C1),(0xF627C3BC,0),(0xE9000000,0)]
+main.li(8,0xA0400000)
+for i,(hi,lo) in enumerate(rdp):
+    main.li(9,hi);main.op(0xAD090000|(i*8));main.li(9,lo);main.op(0xAD090000|(i*8+4))
+main.li(8,0xA4100000);main.li(9,0x15);main.op(0xAD09000C);main.li(9,0x400000);main.op(0xAD090000);main.li(9,0x400000+len(rdp)*8);main.op(0xAD090004)
 # Feed the real AI DMA repeatedly; the frontend must receive stereo PCM.
 main.li(8,0xA0200000);main.li(10,1024);main.li(9,0x18001800);main.label('pcm');main.op(0xAD090000);main.op(0x25080004);main.op(0x254AFFFF);main.branch(5,10,0,'pcm')
 main.li(8,0xA4500000)

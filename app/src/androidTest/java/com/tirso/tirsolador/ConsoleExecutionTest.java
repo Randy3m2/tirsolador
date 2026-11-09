@@ -30,6 +30,7 @@ public class ConsoleExecutionTest {
             boolean visible=false;Set<Integer> colors=new HashSet<>();for(int i=0;i<width*height;i+=7){colors.add(pixels[i]);if((pixels[i]&0xFFFFFF)!=0)visible=true;}
             assertTrue(console+" must execute the ROM and draw visible pixels",visible);
             if(console==Console.N64||console==Console.MAME)assertTrue(console+" diagnostic must render its UI",colors.size()>1);
+            if(console==Console.N64){boolean rdp=false;for(int color:colors)if(((color>>8)&255)>200&&((color>>16)&255)<40&&(color&255)<40)rdp=true;assertTrue("N64 RDP must render the green GPU rectangle",rdp);}
             assertTrue(console+" audio output",samples>0);
             byte[] state=RetroCore.snapshot(handle);assertTrue(state.length>0);storage.saveState(state);
             keys[0]=(1<<8)|(1<<2)|(1<<3);for(int i=0;i<6;i++)RetroCore.frame(handle,keys,axes,pixels,audio);

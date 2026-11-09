@@ -30,7 +30,13 @@ public class EmulationTest {
             int green=p[128*256+128];assertTrue(((green>>8)&255)>240);assertEquals(0,green&0xFF00FF);
             assertFalse(DsCore.restore(h,new byte[32]));assertTrue(DsCore.restore(h,store.loadState()));
             for(int i=0;i<3;i++)DsCore.frame(h,0,0,0,false,p,a);assertEquals(red,p[128*256+128]);
-        }finally{DsCore.close(h);}
+            DsCore.close(h);h=0;
+            store.cleanup();assertTrue(store.rom.delete());
+            GameStorage reopened=new GameStorage(context(),rom());assertEquals(store.dir,reopened.dir);
+            h=DsCore.open(reopened.rom.getPath(),reopened.battery().getPath());
+            assertTrue("DS state survives ROM cleanup and cold reopen",DsCore.restore(h,reopened.loadState()));
+            for(int i=0;i<3;i++)DsCore.frame(h,0,0,0,false,p,a);assertEquals(red,p[128*256+128]);reopened.cleanup();
+        }finally{if(h!=0)DsCore.close(h);}
     }
     @Test public void backupRoundTripAndCorruptionRejected()throws Exception{
         GameStorage store=new GameStorage(context(),rom());byte[] save={1,3,7,9};GameStorage.write(store.battery(),save);
