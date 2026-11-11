@@ -11,6 +11,8 @@ permissions:
   contents: write
 jobs:
   build:
+    outputs:
+      official_signing: ${{ steps.signing_mode.outputs.official_signing }}
     if: ${{ github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[native-only]') && !contains(github.event.head_commit.message, '[validation-only]') }}
     needs: smoke-test
     runs-on: ubuntu-latest
@@ -40,9 +42,21 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: tirsolador-preview-key-v2
-      - name: Prepare existing application signing key
+      - name: Determine signing mode
+        id: signing_mode
         env:
           TIRSO_SIGNING_KEY_B64: ${{ secrets.TIRSO_SIGNING_KEY_B64 }}
+        run: |
+          if [ -n "$TIRSO_SIGNING_KEY_B64" ]; then
+            echo "official_signing=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "official_signing=false" >> "$GITHUB_OUTPUT"
+            echo "No signing secret found: using a test-only signing key."
+          fi
+      - name: Prepare application signing key
+        env:
+          TIRSO_SIGNING_KEY_B64: ${{ secrets.TIRSO_SIGNING_KEY_B64 }}
+          TIRSO_ALLOW_EPHEMERAL_KEY: ${{ steps.signing_mode.outputs.official_signing == 'true' && '0' || '1' }}
         run: bash tools/prepare_preview_key.sh
       - name: Build and lint
         env:
@@ -130,6 +144,7 @@ jobs:
           path: screenshots/
   upgrade-check:
     needs: build
+    if: needs.build.outputs.official_signing == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
